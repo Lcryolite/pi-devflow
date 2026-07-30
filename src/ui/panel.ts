@@ -73,7 +73,8 @@ export class DevflowPanel implements Component {
       const arrow = row.expandable ? (row.expanded ? "▼" : "▶") : " ";
       const symbol = row.status ? statusSymbol[row.status] ?? " " : " ";
       const number = row.number ? `${row.number} ` : "";
-      const base = `${cursor} ${indent}${arrow} ${symbol} ${number}${row.title}${row.workflowBadge ? ` [${row.workflowBadge}]` : ""}`;
+      const workflowBadge = "workflowBadge" in row && typeof row.workflowBadge === "string" ? row.workflowBadge : undefined;
+      const base = `${cursor} ${indent}${arrow} ${symbol} ${number}${row.title}${workflowBadge ? ` [${workflowBadge}]` : ""}`;
       const styled = row.kind === "detail"
         ? this.theme.fg("warning", base)
         : isSelected ? this.theme.fg("accent", base) : base;
