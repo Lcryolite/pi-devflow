@@ -1,23 +1,15 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, truncateToWidth, type Component } from "@earendil-works/pi-tui";
+import { Key, matchesKey, type Component } from "@earendil-works/pi-tui";
 
 import type { ProjectState } from "../domain/types.js";
 import { TreeController } from "./tree-controller.js";
+import { renderTreeRow } from "./tree-render.js";
 
 export type DevflowPanelResult =
   | { type: "close" }
   | { type: "retry"; todoId: string }
   | { type: "toggle-pause" };
 
-const statusSymbol: Record<string, string> = {
-  active: "●",
-  pending: "○",
-  ready: "◇",
-  in_progress: "●",
-  blocked: "!",
-  completed: "✓",
-  cancelled: "×",
-};
 
 export class DevflowPanel implements Component {
   private readonly controller: TreeController;
@@ -67,18 +59,10 @@ export class DevflowPanel implements Component {
       "",
     ];
     for (const row of this.controller.rows()) {
-      const isSelected = row.key === selected;
-      const cursor = isSelected ? this.theme.fg("accent", ">") : " ";
-      const indent = "  ".repeat(row.depth);
-      const arrow = row.expandable ? (row.expanded ? "▼" : "▶") : " ";
-      const symbol = row.status ? statusSymbol[row.status] ?? " " : " ";
-      const number = row.number ? `${row.number} ` : "";
-      const workflowBadge = "workflowBadge" in row && typeof row.workflowBadge === "string" ? row.workflowBadge : undefined;
-      const base = `${cursor} ${indent}${arrow} ${symbol} ${number}${row.title}${workflowBadge ? ` [${workflowBadge}]` : ""}`;
-      const styled = row.kind === "detail"
-        ? this.theme.fg("warning", base)
-        : isSelected ? this.theme.fg("accent", base) : base;
-      lines.push(truncateToWidth(styled, Math.max(1, width)));
+      lines.push(renderTreeRow(row, width, this.theme, {
+        interactive: true,
+        selected: row.key === selected,
+      }));
     }
     if (lines.length === 3) lines.push(this.theme.fg("dim", "No goals or todos."));
     this.cachedWidth = width;

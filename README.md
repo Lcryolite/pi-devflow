@@ -32,7 +32,7 @@ pi install git:github.com/Lcryolite/pi-devflow@main
 Pin a release or commit for repeatable installs:
 
 ```bash
-pi install git:github.com/Lcryolite/pi-devflow@v0.1.1
+pi install git:github.com/Lcryolite/pi-devflow@v0.1.2
 # or
 pi install git:github.com/Lcryolite/pi-devflow@<commit-sha>
 ```
@@ -51,12 +51,13 @@ pi install .
 
 ## Use
 
-- `/devflow` opens the Todo tree in TUI mode.
+- The persistent Todo widget renders the Goal/Todo tree and updates it as work progresses.
+- `/devflow` enters the interactive tree in TUI mode.
 - `/devflow status` prints current Goals and runnable work.
 - `/devflow pause` and `/devflow resume` control scheduling.
 - `/devflow models` shows the three-role model policy.
 - `/devflow doctor` validates state and reports conflicts.
-- `Ctrl+Shift+D` opens the Todo tree.
+- `Ctrl+Shift+D` enters the interactive Todo tree.
 
 The model-facing tools are `devflow_normalize`, `devflow_goal`, `devflow_todo`, and `devflow_workflow`.
 
