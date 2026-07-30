@@ -41,7 +41,7 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 | --- | --- | --- |
 | Legacy import | `src/import/legacy.ts` | Combined Goal/Todo, idempotency, deleted-item warning, and paused-Goal recovery tests |
 | GitHub install docs | `README.md` | Commands target `Lcryolite/pi-devflow` |
-| Platform smoke | `scripts/platform-smoke.mjs`, `.github/workflows/ci.yml` | Local Linux smoke passed; remote OS matrix must pass before release is final |
+| Platform smoke | `scripts/platform-smoke.mjs`, `.github/workflows/ci.yml` | Linux, macOS, and Windows passed in GitHub Actions run [`30583167124`](https://github.com/Lcryolite/pi-devflow/actions/runs/30583167124) |
 | Compatibility matrix | `docs/COMPATIBILITY.md` | Records Node, Pi, Workflow package, and operating-system coverage |
 | npm publication | not published | Optional; GitHub is the supported channel |
 
@@ -55,10 +55,11 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 - Pi RPC smoke on Pi 0.82.1: `/devflow` registered and `/devflow doctor` returned valid revision 0.
 - Isolated Pi TUI smoke on Pi 0.82.1: `/devflow` opened the panel, rendered navigation/expand help, and exited without a crash.
 - Two independent code audits found five lifecycle/idempotency blockers; all were fixed and the focused re-audit cleared them.
-- The first remote Windows smoke exposed a `.cmd` launcher bug in the smoke script; `v0.1.1` uses `npm_execpath` through Node and requires a clean rerun.
+- The first remote Windows smoke exposed a `.cmd` launcher bug; `v0.1.1` switched to `npm_execpath`, and clean branch/tag matrix runs then passed on Linux, macOS, and Windows.
 
-## Remaining release gates
+## Distribution gates
 
-- GitHub repository, commit, and tag must exist.
-- GitHub Actions Linux/macOS/Windows matrix must pass.
-- Installation from the GitHub source must be exercised after push.
+- Repository: [`github.com/Lcryolite/pi-devflow`](https://github.com/Lcryolite/pi-devflow).
+- Release tag: `v0.1.1` at commit `f7d57479690831764b8efd6b419430aced544922`.
+- GitHub installation: `pi install git:github.com/Lcryolite/pi-devflow@v0.1.1` cloned, installed dependencies, registered `/devflow`, and passed `/devflow doctor` over RPC.
+- npm publication remains intentionally deferred; it was optional and GitHub is the supported distribution channel.
