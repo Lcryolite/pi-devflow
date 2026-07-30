@@ -50,11 +50,12 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 - `npm run verify`: TypeScript clean; 38 tests passed.
 - `npm run smoke:platform`: passed on Linux x64, Node v24.14.0.
 - Skill validator: `Skill is valid!`.
-- `npm pack --dry-run --json`: `pi-devflow@0.1.0`, 34 packaged files, 47,604 bytes.
+- `npm pack --dry-run --json`: `pi-devflow@0.1.1`, 34 packaged files, 47,724 bytes.
 - Local `pi install .`: installed and listed by Pi.
 - Pi RPC smoke on Pi 0.82.1: `/devflow` registered and `/devflow doctor` returned valid revision 0.
 - Isolated Pi TUI smoke on Pi 0.82.1: `/devflow` opened the panel, rendered navigation/expand help, and exited without a crash.
 - Two independent code audits found five lifecycle/idempotency blockers; all were fixed and the focused re-audit cleared them.
+- The first remote Windows smoke exposed a `.cmd` launcher bug in the smoke script; `v0.1.1` uses `npm_execpath` through Node and requires a clean rerun.
 
 ## Remaining release gates
 

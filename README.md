@@ -32,7 +32,7 @@ pi install git:github.com/Lcryolite/pi-devflow@main
 Pin a release or commit for repeatable installs:
 
 ```bash
-pi install git:github.com/Lcryolite/pi-devflow@v0.1.0
+pi install git:github.com/Lcryolite/pi-devflow@v0.1.1
 # or
 pi install git:github.com/Lcryolite/pi-devflow@<commit-sha>
 ```
