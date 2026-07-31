@@ -32,7 +32,7 @@ pi install git:github.com/Lcryolite/pi-devflow@main
 Pin a release or commit for repeatable installs:
 
 ```bash
-pi install git:github.com/Lcryolite/pi-devflow@v0.1.3
+pi install git:github.com/Lcryolite/pi-devflow@v0.1.4
 # or
 pi install git:github.com/Lcryolite/pi-devflow@<commit-sha>
 ```
@@ -51,14 +51,14 @@ pi install .
 
 ## Use
 
-- The persistent Todo widget expands active/blocked Goals and automatically collapses completed Goals.
-- `/devflow` enters the interactive tree; its expand/collapse state is shared with the persistent widget.
+- The Todo widget is dynamic: it disappears when there is no ready/running/blocked work.
+- During work it occupies one summary line; `Ctrl+Shift+D` toggles the full tree anywhere without opening `/devflow`.
+- `/devflow` remains an optional management panel for per-row navigation, retry, and pause controls.
 - `/devflow-models` or `/devflow models` opens the interactive central/small/medium/big model selector.
 - Model routing is `small → fanout`, `medium → work`, `central → normal judge`, and `big → escalated judge`.
 - `/devflow status` prints current Goals and runnable work.
 - `/devflow pause` and `/devflow resume` control scheduling.
 - `/devflow doctor` validates state and reports conflicts.
-- `Ctrl+Shift+D` enters the interactive Todo tree.
 
 The model-facing tools are `devflow_normalize`, `devflow_goal`, `devflow_todo`, and `devflow_workflow`.
 

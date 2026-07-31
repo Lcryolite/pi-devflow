@@ -39,7 +39,7 @@ import { DevflowWorkflowAdapter } from "./workflow/adapter.js";
 import { describeModelPolicy, loadDevflowModelPolicy, modelPolicyFromTierConfig } from "./workflow/policy.js";
 import { openDevflowModelSelector } from "./ui/model-selector.js";
 import { DevflowPanel, type DevflowPanelResult } from "./ui/panel.js";
-import { renderCompactWidget, syncWidgetExpandedIds } from "./ui/widget.js";
+import { renderDynamicWidget, syncWidgetExpandedIds, syncWidgetView, toggleWidgetView } from "./ui/widget.js";
 
 const GoalAction = StringEnum(["create", "list", "get", "update", "audit", "complete", "cancel"] as const);
 const TodoAction = StringEnum(["create", "list", "get", "update", "move", "retry", "cancel"] as const);
@@ -160,6 +160,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
   const modelPolicy = loadDevflowModelPolicy();
   const widgetExpandedIds = new Set<string>();
   const widgetGoalStatuses = new Map<string, ProjectState["goals"][string]["status"]>();
+  const widgetView = { expanded: false, hadActivity: undefined as boolean | undefined };
   let activeContext: ExtensionContext | undefined;
   let dispatchReady: (ctx: ExtensionContext, allowMain?: boolean) => Promise<void> = async () => {};
 
@@ -175,6 +176,8 @@ export default function devflowExtension(pi: ExtensionAPI) {
       unsubscribe?.();
       widgetExpandedIds.clear();
       widgetGoalStatuses.clear();
+      widgetView.expanded = false;
+      widgetView.hadActivity = undefined;
       store = await ProjectStore.open(cwd);
       storeCwd = cwd;
     }
@@ -202,6 +205,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
   const updateUiState = (ctx: ExtensionContext, state: ProjectState): void => {
     currentState = state;
     syncWidgetExpandedIds(state, widgetExpandedIds, widgetGoalStatuses);
+    syncWidgetView(state, widgetView);
     const active = Object.values(state.goals).filter((goal) => goal.status === "active" || goal.status === "blocked").length;
     ctx.ui.setStatus("devflow", active > 0 ? `devflow:${active}` : undefined);
     widgetTui?.requestRender(true);
@@ -345,7 +349,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
       ctx.ui.setWidget("devflow-tree", (tui, theme) => {
         widgetTui = tui;
         return {
-          render: (width: number) => currentState ? renderCompactWidget(currentState, width, theme, widgetExpandedIds) : [],
+          render: (width: number) => currentState ? renderDynamicWidget(currentState, width, theme, widgetExpandedIds, widgetView.expanded) : [],
           invalidate() {},
         };
       });
@@ -466,8 +470,11 @@ export default function devflowExtension(pi: ExtensionAPI) {
   });
 
   pi.registerShortcut("ctrl+shift+d", {
-    description: "Open pi-devflow",
-    handler: async (ctx) => openPanel(ctx),
+    description: "Toggle dynamic Devflow widget",
+    handler: () => {
+      toggleWidgetView(widgetView);
+      widgetTui?.requestRender(true);
+    },
   });
 
 

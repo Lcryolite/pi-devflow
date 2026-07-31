@@ -7,8 +7,10 @@ import {
   addGoal,
   addTodo,
   createProjectState,
-  renderCompactWidget,
+  renderDynamicWidget,
   syncWidgetExpandedIds,
+  syncWidgetView,
+  toggleWidgetView,
   TreeController,
 } from "../src/index.js";
 
@@ -37,26 +39,56 @@ function widgetState() {
   }, "2026-07-30T00:00:03.000Z");
 }
 
-test("persistent widget renders the Goal/Todo tree without an interactive cursor", () => {
-  const lines = renderCompactWidget(widgetState(), 120, theme);
+test("idle widget disappears instead of pinning completed history above messages", () => {
+  const state = widgetState();
+  state.goals["goal-1"]!.status = "completed";
+  state.todos.parent!.status = "completed";
+  state.todos.child!.status = "completed";
+
+  assert.deepEqual(renderDynamicWidget(state, 120, theme, new Set(), false), []);
+});
+
+test("working widget defaults to one dynamic summary line", () => {
+  const state = widgetState();
+  state.todos.parent!.status = "in_progress";
+
+  const lines = renderDynamicWidget(state, 120, theme, new Set(), false);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0]!, /^◆ Devflow · 1 running · Ctrl\+Shift\+D 展开 · Parent Todo$/);
+});
+
+test("expanded widget renders the full tree without an interactive cursor", () => {
+  const lines = renderDynamicWidget(widgetState(), 120, theme, new Set(["goal:goal-1"]), true);
 
   assert.deepEqual(lines, [
     "▼ ● #1 Persistent tree",
     "  ▶ ○ #1.1 Parent Todo",
   ]);
   assert.ok(lines.every((line) => !line.startsWith(">")));
-  assert.ok(lines.every((line) => !line.includes("Devflow ·")));
 });
 
-test("persistent widget collapses completed Goals by default", () => {
-  const state = widgetState();
-  state.goals["goal-1"]!.status = "completed";
-  state.todos.parent!.status = "completed";
-  state.todos.child!.status = "completed";
+test("global widget toggle expands and collapses without opening a panel", () => {
+  const view = { expanded: false, hadActivity: false };
+  assert.equal(toggleWidgetView(view), true);
+  assert.equal(toggleWidgetView(view), false);
+});
 
-  assert.deepEqual(renderCompactWidget(state, 120, theme), [
-    "▶ ✓ #1 Persistent tree",
-  ]);
+test("widget auto-collapses only when work transitions to idle", () => {
+  const active = widgetState();
+  active.todos.parent!.status = "in_progress";
+  const idle = structuredClone(active);
+  idle.goals["goal-1"]!.status = "completed";
+  idle.todos.parent!.status = "completed";
+  idle.todos.child!.status = "completed";
+  const view = { expanded: true, hadActivity: undefined as boolean | undefined };
+
+  syncWidgetView(active, view);
+  assert.equal(view.expanded, true);
+  syncWidgetView(idle, view);
+  assert.equal(view.expanded, false);
+  toggleWidgetView(view);
+  syncWidgetView(idle, view);
+  assert.equal(view.expanded, true, "manual idle expansion survives unrelated refreshes");
 });
 
 test("interactive tree and persistent widget share expansion state", () => {
@@ -64,9 +96,9 @@ test("interactive tree and persistent widget share expansion state", () => {
   const expanded = new Set(["goal:goal-1"]);
   const controller = new TreeController(state, expanded);
 
-  assert.equal(renderCompactWidget(state, 120, theme, expanded).length, 2);
+  assert.equal(renderDynamicWidget(state, 120, theme, expanded, true).length, 2);
   assert.deepEqual(controller.activate(), { type: "collapse", key: "goal:goal-1" });
-  assert.deepEqual(renderCompactWidget(state, 120, theme, expanded), [
+  assert.deepEqual(renderDynamicWidget(state, 120, theme, expanded, true), [
     "▶ ● #1 Persistent tree",
   ]);
 });

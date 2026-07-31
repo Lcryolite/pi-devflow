@@ -594,7 +594,7 @@ Devflow · 2 goals · 3 ready · 1 blocked
 
 ### 14.3 Widget 与面板关系
 
-持久 Widget 只负责紧凑显示，不抢占编辑器输入。交互箭头在 `/devflow` 面板中操作。可注册快捷键打开面板，但不得覆盖常用 Pi 默认键位。
+动态 Widget 在无 ready/running/blocked 工作时不渲染；工作中默认仅占一行摘要。`Ctrl+Shift+D` 在普通 TUI 状态直接切换完整树与紧凑/隐藏态，不依赖 `/devflow`；`/devflow` 仅保留为可选的逐行管理面板。
 
 ### 14.4 非 TUI 模式
 
