@@ -1,6 +1,6 @@
 {
   "name": "pi-devflow",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Project-scoped goals, hierarchical todos, and resilient scheduling for Pi.",
   "type": "module",
   "license": "MIT",

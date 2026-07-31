@@ -20,7 +20,7 @@ test("extension registers Phase 4 tools, lifecycle, command, and shortcut", () =
   devflowExtension(fakePi);
 
   assert.deepEqual(tools, ["devflow_workflow", "devflow_normalize", "devflow_goal", "devflow_todo"]);
-  assert.deepEqual(commands, ["devflow"]);
+  assert.deepEqual(commands, ["devflow-models", "devflow"]);
   assert.deepEqual(shortcuts, ["ctrl+shift+d"]);
   assert.deepEqual(events, ["session_start", "session_tree", "session_compact", "session_shutdown", "model_select", "before_agent_start", "agent_settled", "tool_execution_end"]);
 });

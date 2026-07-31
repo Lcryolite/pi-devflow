@@ -30,11 +30,10 @@ export function buildWorkflowScript(
   const phaseMetadata = plan.phases.map((phase) => {
     if (!phase.title.trim() || phase.prompts.length === 0) throw new Error("Every Workflow phase needs a title and prompt");
     const model = resolveRoleModel(phase.role, mainModel, policy, phase.escalateJudge ?? false);
-    const explicit = phase.role === "fanout" || (phase.role === "judge" && phase.escalateJudge);
     return {
       title: phase.title,
       role: phase.role,
-      ...(explicit ? { requestedModel: model } : {}),
+      requestedModel: model,
     };
   });
 

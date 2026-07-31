@@ -29,7 +29,7 @@
 - Goal 创建后自动开始执行，不设置 Goal/Plan 人工批准门。Pi 原有权限、安全确认和项目信任机制不被绕过。
 - Todo 支持子 Todo；父 Todo 在所有必需子项完成后自动完成。
 - Workflow 的阶段映射为子 Todo；具体 Agent 只显示在阶段展开详情中。
-- Workflow 默认继承主会话模型。内部只使用 `fanout`、`work`、`judge` 三种阶段角色。
+- Workflow 使用中央调控模型加 `fanout`、`work`、`judge` 三种阶段角色；small/medium/big 可通过 `/devflow-models` 交互配置。
 - 多个 Goal 可以并存；只有无语义依赖且无资源冲突的工作才并行。
 - 没有独立交付价值的“虚假 Goal”自动降级为现有 Goal 的 Todo。
 - 项目状态跨 Pi 会话持久化，重新进入项目后恢复。
@@ -437,9 +437,9 @@ Goal blocked 时仍保持可恢复，不自动转为 cancelled 或 completed。
 Workflow 脚本标记角色，不直接要求用户理解模型表：
 
 ```text
-fanout → 小模型
-work   → 继承主会话模型
-judge  → 先继承；必要时升级大模型
+fanout → small 小模型
+work   → medium 中模型
+judge  → 中央调控模型；必要时升级 big 大模型
 ```
 
 judge 升级仅在多个 Agent 结论冲突、验证失败、或涉及架构/安全/不可逆决策时发生。
@@ -539,7 +539,8 @@ Phase 1 提供两个工具，避免过大的单一 schema：
 /devflow status          显示紧凑状态
 /devflow goal <id>       聚焦 Goal
 /devflow todo <id>       聚焦 Todo
-/devflow models          查看/覆盖模型映射
+/devflow models          打开交互式中央/small/medium/big 模型编排器
+/devflow-models          同上，作为独立 slash 命令便于发现
 /devflow pause           暂停自动调度，不暂停状态更新
 /devflow resume          恢复调度
 /devflow doctor          检查状态、依赖、Workflow 适配和重复工具

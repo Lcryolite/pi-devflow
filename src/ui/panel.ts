@@ -4,6 +4,7 @@ import { Key, matchesKey, type Component } from "@earendil-works/pi-tui";
 import type { ProjectState } from "../domain/types.js";
 import { TreeController } from "./tree-controller.js";
 import { renderTreeRow } from "./tree-render.js";
+import { defaultWidgetExpandedIds } from "./widget.js";
 
 export type DevflowPanelResult =
   | { type: "close" }
@@ -21,9 +22,9 @@ export class DevflowPanel implements Component {
     private readonly theme: Theme,
     private readonly requestRender: () => void,
     private readonly done: (result: DevflowPanelResult) => void,
+    expandedIds: Set<string> = defaultWidgetExpandedIds(state),
   ) {
-    this.controller = new TreeController(state);
-    for (const goal of Object.values(state.goals)) this.controller.expand(`goal:${goal.id}`);
+    this.controller = new TreeController(state, expandedIds);
   }
 
   handleInput(data: string): void {

@@ -36,9 +36,10 @@ import { registerDevflowWorkflowTool } from "./pi/workflow-tool.js";
 import { formatStatus } from "./status.js";
 import { ProjectStore } from "./store/project-store.js";
 import { DevflowWorkflowAdapter } from "./workflow/adapter.js";
-import { describeModelPolicy, loadDevflowModelPolicy } from "./workflow/policy.js";
+import { describeModelPolicy, loadDevflowModelPolicy, modelPolicyFromTierConfig } from "./workflow/policy.js";
+import { openDevflowModelSelector } from "./ui/model-selector.js";
 import { DevflowPanel, type DevflowPanelResult } from "./ui/panel.js";
-import { renderCompactWidget } from "./ui/widget.js";
+import { renderCompactWidget, syncWidgetExpandedIds } from "./ui/widget.js";
 
 const GoalAction = StringEnum(["create", "list", "get", "update", "audit", "complete", "cancel"] as const);
 const TodoAction = StringEnum(["create", "list", "get", "update", "move", "retry", "cancel"] as const);
@@ -156,14 +157,24 @@ export default function devflowExtension(pi: ExtensionAPI) {
   let workflowManagerCwd: string | undefined;
   let workflowAdapter: DevflowWorkflowAdapter | undefined;
   let mainModel = "inherit";
-  let modelPolicy = loadDevflowModelPolicy();
+  const modelPolicy = loadDevflowModelPolicy();
+  const widgetExpandedIds = new Set<string>();
+  const widgetGoalStatuses = new Map<string, ProjectState["goals"][string]["status"]>();
   let activeContext: ExtensionContext | undefined;
   let dispatchReady: (ctx: ExtensionContext, allowMain?: boolean) => Promise<void> = async () => {};
+
+  const applyModelPolicy = (next: ReturnType<typeof loadDevflowModelPolicy>): void => {
+    for (const key of Object.keys(modelPolicy) as Array<keyof typeof modelPolicy>) delete modelPolicy[key];
+    Object.assign(modelPolicy, next);
+  };
+
 
   const getStore = async (ctx: ExtensionContext): Promise<ProjectStore> => {
     const cwd = resolve(ctx.cwd);
     if (!store || storeCwd !== cwd) {
       unsubscribe?.();
+      widgetExpandedIds.clear();
+      widgetGoalStatuses.clear();
       store = await ProjectStore.open(cwd);
       storeCwd = cwd;
     }
@@ -177,7 +188,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
     if (!workflowManager || workflowManagerCwd !== cwd) {
       workflowManager = new WorkflowManager({ cwd });
       workflowManagerCwd = cwd;
-      modelPolicy = loadDevflowModelPolicy();
+      applyModelPolicy(loadDevflowModelPolicy());
       workflowAdapter = new DevflowWorkflowAdapter(workflowManager, projectStore, () => mainModel, modelPolicy, () => {
         if (activeContext) void dispatchReady(activeContext, true);
       });
@@ -190,6 +201,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
 
   const updateUiState = (ctx: ExtensionContext, state: ProjectState): void => {
     currentState = state;
+    syncWidgetExpandedIds(state, widgetExpandedIds, widgetGoalStatuses);
     const active = Object.values(state.goals).filter((goal) => goal.status === "active" || goal.status === "blocked").length;
     ctx.ui.setStatus("devflow", active > 0 ? `devflow:${active}` : undefined);
     widgetTui?.requestRender(true);
@@ -333,7 +345,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
       ctx.ui.setWidget("devflow-tree", (tui, theme) => {
         widgetTui = tui;
         return {
-          render: (width: number) => currentState ? renderCompactWidget(currentState, width, theme) : [],
+          render: (width: number) => currentState ? renderCompactWidget(currentState, width, theme, widgetExpandedIds) : [],
           invalidate() {},
         };
       });
@@ -350,7 +362,8 @@ export default function devflowExtension(pi: ExtensionAPI) {
       const projectStore = await getStore(ctx);
       const state = await projectStore.load();
       const result = await ctx.ui.custom<DevflowPanelResult>((tui, theme, _keybindings, done) =>
-        new DevflowPanel(state, theme, () => tui.requestRender(), done));
+        new DevflowPanel(state, theme, () => tui.requestRender(), done, widgetExpandedIds));
+      widgetTui?.requestRender(true);
       if (!result || result.type === "close") return;
       if (result.type === "toggle-pause") {
         await projectStore.transact((draft) => setSchedulerPaused(draft, !draft.scheduler.paused), { actor: "user:/devflow" });
@@ -715,6 +728,13 @@ export default function devflowExtension(pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("devflow-models", {
+    description: "Interactively configure Devflow central/small/medium/big models",
+    handler: async (_args, ctx) => {
+      await openDevflowModelSelector(pi, ctx, (config) => applyModelPolicy(modelPolicyFromTierConfig(config)));
+    },
+  });
+
   pi.registerCommand("devflow", {
     description: "Open pi-devflow or show status and doctor checks",
     handler: async (args, ctx) => {
@@ -736,8 +756,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
         return;
       }
       if (action === "models") {
-        modelPolicy = loadDevflowModelPolicy();
-        ctx.ui.notify(describeModelPolicy(modelPolicy, mainModel), "info");
+        await openDevflowModelSelector(pi, ctx, (config) => applyModelPolicy(modelPolicyFromTierConfig(config)));
         return;
       }
       if (action === "doctor") {

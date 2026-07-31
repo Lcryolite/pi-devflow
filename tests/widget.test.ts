@@ -3,7 +3,14 @@ import test from "node:test";
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 
-import { addGoal, addTodo, createProjectState, renderCompactWidget } from "../src/index.js";
+import {
+  addGoal,
+  addTodo,
+  createProjectState,
+  renderCompactWidget,
+  syncWidgetExpandedIds,
+  TreeController,
+} from "../src/index.js";
 
 const theme = {
   fg: (_color: string, text: string) => text,
@@ -41,14 +48,48 @@ test("persistent widget renders the Goal/Todo tree without an interactive cursor
   assert.ok(lines.every((line) => !line.includes("Devflow ·")));
 });
 
-test("persistent widget includes completed Goals instead of disappearing", () => {
+test("persistent widget collapses completed Goals by default", () => {
   const state = widgetState();
   state.goals["goal-1"]!.status = "completed";
   state.todos.parent!.status = "completed";
   state.todos.child!.status = "completed";
 
   assert.deepEqual(renderCompactWidget(state, 120, theme), [
-    "▼ ✓ #1 Persistent tree",
-    "  ▶ ✓ #1.1 Parent Todo",
+    "▶ ✓ #1 Persistent tree",
   ]);
+});
+
+test("interactive tree and persistent widget share expansion state", () => {
+  const state = widgetState();
+  const expanded = new Set(["goal:goal-1"]);
+  const controller = new TreeController(state, expanded);
+
+  assert.equal(renderCompactWidget(state, 120, theme, expanded).length, 2);
+  assert.deepEqual(controller.activate(), { type: "collapse", key: "goal:goal-1" });
+  assert.deepEqual(renderCompactWidget(state, 120, theme, expanded), [
+    "▶ ● #1 Persistent tree",
+  ]);
+});
+
+
+test("widget expansion follows Goal lifecycle without overriding manual toggles", () => {
+  const state = widgetState();
+  const expanded = new Set<string>();
+  const statuses = new Map<string, typeof state.goals[string]["status"]>();
+
+  syncWidgetExpandedIds(state, expanded, statuses);
+  assert.deepEqual([...expanded], ["goal:goal-1"]);
+
+  expanded.clear();
+  syncWidgetExpandedIds(state, expanded, statuses);
+  assert.equal(expanded.size, 0, "manual collapse must survive unrelated state refreshes");
+
+  state.goals["goal-1"]!.status = "completed";
+  expanded.add("goal:goal-1");
+  syncWidgetExpandedIds(state, expanded, statuses);
+  assert.equal(expanded.size, 0, "completion transition must auto-collapse the Goal");
+
+  expanded.add("goal:goal-1");
+  syncWidgetExpandedIds(state, expanded, statuses);
+  assert.deepEqual([...expanded], ["goal:goal-1"], "completed Goals can be reopened manually");
 });

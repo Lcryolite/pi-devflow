@@ -47,20 +47,21 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 
 ## Observed local checks
 
-- `npm run verify`: TypeScript clean; 40 tests passed.
+- `npm run verify`: TypeScript clean; 44 tests passed.
 - `npm run smoke:platform`: passed on Linux x64, Node v24.14.0.
 - Skill validator: `Skill is valid!`.
-- `npm pack --dry-run --json`: `pi-devflow@0.1.2`, 35 packaged files, 48,015 bytes.
+- `npm pack --dry-run --json`: `pi-devflow@0.1.3`, 36 packaged files, 50,731 bytes.
 - Local `pi install .`: installed and listed by Pi.
 - Pi RPC smoke on Pi 0.82.1: `/devflow` registered and `/devflow doctor` returned valid revision 0.
 - Isolated Pi TUI smoke on Pi 0.82.1: `/devflow` opened the panel, rendered navigation/expand help, and exited without a crash.
 - Two independent code audits found five lifecycle/idempotency blockers; all were fixed and the focused re-audit cleared them.
 - The first remote Windows smoke exposed a `.cmd` launcher bug; `v0.1.1` switched to `npm_execpath`, and clean branch/tag matrix runs then passed on Linux, macOS, and Windows.
 - `v0.1.2` adds persistent Goal/Todo tree rendering to the Todo widget; focused widget tests verify active and completed Goals, hierarchy, arrows, status symbols, and absence of an interactive cursor.
+- `v0.1.3` adds `/devflow-models`, routes medium to work, pins every generated Workflow phase to its resolved model, shares panel/Widget expansion state, and auto-collapses completed Goals.
 
 ## Distribution gates
 
 - Repository: [`github.com/Lcryolite/pi-devflow`](https://github.com/Lcryolite/pi-devflow).
-- Supported release tag: `v0.1.2` (resolve the immutable commit with `git rev-list -n 1 v0.1.2`).
-- GitHub installation command: `pi install git:github.com/Lcryolite/pi-devflow@v0.1.2`; validate registration with `/devflow doctor` after reload.
+- Supported release tag: `v0.1.3` (resolve the immutable commit with `git rev-list -n 1 v0.1.3`).
+- GitHub installation command: `pi install git:github.com/Lcryolite/pi-devflow@v0.1.3`; validate registration with `/devflow doctor` after reload.
 - npm publication remains intentionally deferred; it was optional and GitHub is the supported distribution channel.

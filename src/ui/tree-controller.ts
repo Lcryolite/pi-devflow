@@ -7,11 +7,13 @@ export type TreeAction =
   | { type: "none" };
 
 export class TreeController {
-  readonly expandedIds = new Set<string>();
+  readonly expandedIds: Set<string>;
   private selectedKey: string | undefined;
   private focusedGoalId: string | undefined;
 
-  constructor(private state: ProjectState) {}
+  constructor(private state: ProjectState, expandedIds?: Set<string>) {
+    this.expandedIds = expandedIds ?? new Set<string>();
+  }
 
   update(state: ProjectState): void {
     this.state = state;

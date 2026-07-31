@@ -7,8 +7,10 @@ import {
   addGoal,
   addTodo,
   applyWorkflowSnapshot,
+  buildWorkflowScript,
   createProjectState,
   createWorkflowBinding,
+  modelPolicyFromTierConfig,
   resolveRoleModel,
   projectTreeRows,
   workflowPhaseModelLabel,
@@ -63,11 +65,59 @@ test("out-of-order workflow snapshots cannot regress projection", () => {
 });
 
 test("three-role model routing is deterministic", () => {
-  const policy = { fanout: "openai/gpt-small", judge: "openai/gpt-large" };
+  const policy = {
+    fanout: "openai/gpt-small",
+    work: "openai/gpt-medium",
+    judge: "openai/gpt-large",
+  };
   assert.equal(resolveRoleModel("fanout", "openai/gpt-main", policy, false), "openai/gpt-small");
-  assert.equal(resolveRoleModel("work", "openai/gpt-main", policy, false), "openai/gpt-main");
+  assert.equal(resolveRoleModel("work", "openai/gpt-main", policy, false), "openai/gpt-medium");
   assert.equal(resolveRoleModel("judge", "openai/gpt-main", policy, false), "openai/gpt-main");
   assert.equal(resolveRoleModel("judge", "openai/gpt-main", policy, true), "openai/gpt-large");
+});
+
+
+test("tier configuration maps small, medium, and big into Devflow roles", () => {
+  assert.deepEqual(modelPolicyFromTierConfig({
+    tiers: {
+      small: "openai/gpt-small:low",
+      medium: "openai/gpt-medium:high",
+      big: "openai/gpt-big:xhigh",
+    },
+  }), {
+    fanout: "openai/gpt-small:low",
+    work: "openai/gpt-medium:high",
+    judge: "openai/gpt-big:xhigh",
+  });
+});
+
+
+test("generated Workflow script pins every phase to its resolved role model", () => {
+  const built = buildWorkflowScript({
+    name: "route",
+    description: "route every phase",
+    phases: [
+      { title: "Fanout", role: "fanout", prompts: ["scan"] },
+      { title: "Work", role: "work", prompts: ["implement"] },
+      { title: "Judge", role: "judge", prompts: ["review"] },
+      { title: "Escalated", role: "judge", prompts: ["deep review"], escalateJudge: true },
+    ],
+  }, "openai/main", {
+    fanout: "openai/small",
+    work: "openai/medium",
+    judge: "openai/big",
+  });
+
+  assert.deepEqual(built.phases.map((phase) => phase.requestedModel), [
+    "openai/small",
+    "openai/medium",
+    "openai/main",
+    "openai/big",
+  ]);
+  assert.match(built.script, /"model":"openai\/small"/);
+  assert.match(built.script, /"model":"openai\/medium"/);
+  assert.match(built.script, /"model":"openai\/main"/);
+  assert.match(built.script, /"model":"openai\/big"/);
 });
 
 
