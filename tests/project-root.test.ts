@@ -35,3 +35,9 @@ test("normalizeTitle collapses markdown heading glue into one line", () => {
   );
   assert.equal(normalizeTitle("line1\nline2"), "line1 line2");
 });
+
+test("normalizeTitle preserves legitimate # characters", () => {
+  assert.equal(normalizeTitle("Fix C# interop for issue #42"), "Fix C# interop for issue #42");
+  assert.equal(normalizeTitle("refactor #7: cache"), "refactor #7: cache");
+  assert.equal(normalizeTitle("### Phase 2"), "Phase 2");
+});
