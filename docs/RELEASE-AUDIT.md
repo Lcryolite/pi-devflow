@@ -50,7 +50,7 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 - `npm run verify`: TypeScript clean; 78 tests passed.
 - `npm run smoke:platform`: passed on Linux x64, Node v24.14.0.
 - Skill validator: `Skill is valid!`.
-- `npm pack --dry-run --json`: `pi-devflow@0.2.0`, 48 packaged files, 63,737 bytes.
+- `npm pack --dry-run --json`: `pi-devflow@0.2.1`, 48 packaged files, 63,738 bytes.
 - Local `pi install .`: installed and listed by Pi.
 - Pi RPC smoke on Pi 0.82.1: `/devflow` registered and `/devflow doctor` returned valid revision 0.
 - Isolated Pi TUI smoke on Pi 0.82.1: `/devflow` opened the panel, rendered navigation/expand help, and exited without a crash.
@@ -66,6 +66,6 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 ## Distribution gates
 
 - Repository: [`github.com/Lcryolite/pi-devflow`](https://github.com/Lcryolite/pi-devflow).
-- Supported release tag: `v0.2.0` (resolve the immutable commit with `git rev-list -n 1 v0.2.0`).
-- GitHub installation command: `pi install git:github.com/Lcryolite/pi-devflow@v0.2.0`; close/reload all older Devflow windows before first use, then validate with `/devflow doctor`.
+- Supported release tag: `v0.2.1` (resolve the immutable commit with `git rev-list -n 1 v0.2.1`).
+- GitHub installation command: `pi install git:github.com/Lcryolite/pi-devflow@v0.2.1`; close/reload all older Devflow windows before first use, then validate with `/devflow doctor`.
 - npm publication remains intentionally deferred; it was optional and GitHub is the supported distribution channel.

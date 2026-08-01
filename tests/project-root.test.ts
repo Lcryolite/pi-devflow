@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,8 +14,9 @@ test("resolveDevflowProjectRoot walks up to the nearest git root", async (t) => 
   const nested = join(root, "packages", "app");
   await mkdir(nested, { recursive: true });
 
-  assert.equal(await resolveDevflowProjectRoot(nested), root);
-  assert.equal(await resolveDevflowProjectRoot(root), root);
+  const canonicalRoot = await realpath(root);
+  assert.equal(await resolveDevflowProjectRoot(nested), canonicalRoot);
+  assert.equal(await resolveDevflowProjectRoot(root), canonicalRoot);
 });
 
 test("resolveDevflowProjectRoot keeps cwd when no git root exists", async (t) => {
@@ -25,7 +26,7 @@ test("resolveDevflowProjectRoot keeps cwd when no git root exists", async (t) =>
   await mkdir(nested, { recursive: true });
   await writeFile(join(nested, "note.txt"), "x");
 
-  assert.equal(await resolveDevflowProjectRoot(nested), nested);
+  assert.equal(await resolveDevflowProjectRoot(nested), await realpath(nested));
 });
 
 test("normalizeTitle collapses markdown heading glue into one line", () => {
