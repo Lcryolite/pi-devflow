@@ -16,7 +16,7 @@ export function formatStatus(state: ProjectState): string {
   const running = todos.filter((todo) => todo.status === "in_progress");
   const blocked = todos.filter((todo) => todo.status === "blocked");
   const lines = [
-    `Devflow ${state.project.id} · revision ${state.revision} · ${goals.length} goal(s) · ${ready.length} ready · ${running.length} running · ${blocked.length} blocked`,
+    `Devflow ${state.project.root} · rev ${state.revision} · ${goals.length} goal(s) · ${ready.length} ready · ${running.length} running · ${blocked.length} blocked`,
   ];
 
   const visible = [...running, ...ready, ...blocked].slice(0, 12);
@@ -26,4 +26,16 @@ export function formatStatus(state: ProjectState): string {
   }
   if (visible.length === 0) lines.push("No runnable or blocked todos.");
   return lines.join("\n");
+}
+
+export function listGoals(state: ProjectState): string {
+  const goals = Object.values(state.goals);
+  if (goals.length === 0) return "No goals.";
+  return goals.map((goal) => `${goal.status === "completed" ? "✓" : goal.status === "blocked" ? "!" : "●"} ${goal.id} ${goal.title}`).join("\n");
+}
+
+export function listTodos(state: ProjectState, goalId?: string): string {
+  const todos = Object.values(state.todos).filter((todo) => !goalId || todo.goalId === goalId);
+  if (todos.length === 0) return "No todos.";
+  return todos.map((todo) => `${todo.status.padEnd(11)} #${todo.id} ${todo.title}`).join("\n");
 }

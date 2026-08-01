@@ -1,3 +1,4 @@
+import { normalizeTitle } from "../domain/text.js";
 import type { GoalStatus, ProjectState, TodoStatus } from "../domain/types.js";
 import { workflowPhaseModelLabel } from "../workflow/projection.js";
 
@@ -60,7 +61,7 @@ export function projectTreeRows(
       kind: "todo",
       depth,
       number,
-      title: todo.title,
+      title: normalizeTitle(todo.title),
       status: todo.status,
       expandable,
       expanded,
@@ -112,7 +113,7 @@ export function projectTreeRows(
       kind: "goal",
       depth: 0,
       number: `#${goalIndex + 1}`,
-      title: goal.title,
+      title: normalizeTitle(goal.title),
       status: goal.status,
       expandable: goal.rootTodoIds.length > 0,
       expanded,

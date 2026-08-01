@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { auditGoal, completeGoalFromAudit } from "./audit.js";
 
+import { normalizeTitle } from "./text.js";
 import type { AddGoalInput, AddTodoInput, ProjectState, TodoStatus } from "./types.js";
 
 function clone(state: ProjectState): ProjectState {
@@ -48,7 +49,7 @@ export function addGoal(state: ProjectState, input: AddGoalInput, now: string): 
   const next = clone(state);
   next.goals[input.id] = {
     id: input.id,
-    title: input.title,
+    title: normalizeTitle(input.title),
     objective: input.objective,
     successCriteria: structuredClone(input.successCriteria),
     constraints: [...(input.constraints ?? [])],
@@ -81,7 +82,7 @@ export function addTodo(state: ProjectState, input: AddTodoInput, now: string): 
     id: input.id,
     goalId: input.goalId,
     ...(input.parentId ? { parentId: input.parentId } : {}),
-    title: input.title,
+    title: normalizeTitle(input.title),
     ...(input.description ? { description: input.description } : {}),
     status: "pending",
     required: input.required ?? true,

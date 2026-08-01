@@ -72,6 +72,8 @@ Read [`docs/MIGRATION.md`](docs/MIGRATION.md) before disabling the old extension
 
 ## Runtime state
 
+Project identity is the **nearest Git repository root** above the Pi session cwd (or the cwd itself when no `.git` is found). Do not run long-lived Devflow work from your home directory as cwd — that used to dump unrelated Goals into one shared blob.
+
 Project state is stored outside the repository:
 
 ```text
@@ -82,6 +84,8 @@ Project state is stored outside the repository:
 ```
 
 Writes use a cross-process lock, journal-first persistence, and atomic snapshots. Corrupt snapshots recover from the latest valid journal event. State must not contain credentials or full sensitive tool output.
+
+`/devflow` shows the resolved project root in the panel header. `/devflow doctor` warns if the root is your home directory.
 
 ## Development
 

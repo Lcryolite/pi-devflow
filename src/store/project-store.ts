@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, realpath, rename } from "node:fs/promises";
+import { mkdir, open, readFile, rename } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 
 import { validateProject } from "../domain/invariants.js";
 import { migrateProjectState } from "../domain/migrations.js";
@@ -9,6 +9,7 @@ import { createProjectState, reconcileProject } from "../domain/state.js";
 import type { ProjectState } from "../domain/types.js";
 import { appendProjectEvent, readLatestJournalState } from "./journal.js";
 import { ProjectLock } from "./project-lock.js";
+import { resolveDevflowProjectRoot } from "./project-root.js";
 
 export interface ProjectStoreOptions {
   stateRoot?: string;
@@ -59,13 +60,8 @@ export class ProjectStore {
   }
 
   static async open(projectRoot: string, options: ProjectStoreOptions = {}): Promise<ProjectStore> {
-    const resolvedRoot = resolve(projectRoot);
-    let root = resolvedRoot;
-    try {
-      root = await realpath(resolvedRoot);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
+    // Git root when available so different repos never share one home-scoped blob.
+    const root = await resolveDevflowProjectRoot(projectRoot);
     const clock = options.clock ?? (() => new Date().toISOString());
     const initial = createProjectState(root, clock());
     const stateRoot = options.stateRoot ?? join(homedir(), ".pi", "agent", "devflow", "projects");

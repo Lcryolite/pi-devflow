@@ -1,5 +1,7 @@
+import { basename } from "node:path";
+
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, type Component } from "@earendil-works/pi-tui";
+import { Key, matchesKey, truncateToWidth, type Component } from "@earendil-works/pi-tui";
 
 import type { ProjectState } from "../domain/types.js";
 import { TreeController } from "./tree-controller.js";
@@ -11,14 +13,13 @@ export type DevflowPanelResult =
   | { type: "retry"; todoId: string }
   | { type: "toggle-pause" };
 
-
 export class DevflowPanel implements Component {
   private readonly controller: TreeController;
   private cachedWidth: number | undefined;
   private cachedLines: string[] | undefined;
 
   constructor(
-    state: ProjectState,
+    private readonly state: ProjectState,
     private readonly theme: Theme,
     private readonly requestRender: () => void,
     private readonly done: (result: DevflowPanelResult) => void,
@@ -53,19 +54,25 @@ export class DevflowPanel implements Component {
 
   render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
-    const selected = this.controller.selectedRow()?.key;
+    const w = Math.max(1, width);
+    const rootLabel = basename(this.state.project.root) || this.state.project.root;
+    const active = Object.values(this.state.goals).filter((goal) => goal.status === "active" || goal.status === "blocked").length;
+    const paused = this.state.scheduler.paused ? " · paused" : "";
+    const header = `devflow · ${rootLabel} · rev ${this.state.revision} · ${active} active${paused}`;
+    const help = "↑↓ move · enter expand · left collapse · g focus · r retry · p pause · esc";
     const lines = [
-      this.theme.fg("accent", this.theme.bold("pi-devflow")),
-      this.theme.fg("dim", "↑↓ navigate · enter/right expand · left collapse · g focus · r retry · p pause · esc close"),
+      this.theme.fg("accent", this.theme.bold(truncateToWidth(header, w))),
+      this.theme.fg("dim", truncateToWidth(this.state.project.root, w)),
+      this.theme.fg("dim", truncateToWidth(help, w)),
       "",
     ];
     for (const row of this.controller.rows()) {
       lines.push(renderTreeRow(row, width, this.theme, {
         interactive: true,
-        selected: row.key === selected,
+        selected: row.key === this.controller.selectedRow()?.key,
       }));
     }
-    if (lines.length === 3) lines.push(this.theme.fg("dim", "No goals or todos."));
+    if (lines.length === 4) lines.push(this.theme.fg("dim", "No goals or todos in this project."));
     this.cachedWidth = width;
     this.cachedLines = lines;
     return lines;
