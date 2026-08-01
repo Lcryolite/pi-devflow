@@ -2,6 +2,20 @@
 
 `pi-devflow` imports state from the active Pi session branch. It recognizes `pi-codex-goal` custom entries and the latest successful `rpiv-todo` tool result.
 
+## v0.1.x → v0.2.0 session-isolation upgrade
+
+Before loading v0.2.0, close or reload **every** Pi window running Devflow. This is mandatory: schema v3 intentionally makes old runtimes fail closed, but it cannot retroactively stop agents an old process already launched.
+
+On first schema-v3 load:
+
+- existing Goals become `legacy-unowned` and are hidden from normal session Widget/status/context;
+- reserved/sent continuations expire;
+- active leases are removed;
+- main executions become retryable blockers;
+- running/planned Workflows are quarantined and no longer auto-resume.
+
+Use `/devflow project` to inspect quarantined work. After confirming old windows are stopped, run `/devflow adopt <goal-id>`; Devflow adopts its connected dependency/evidence closure atomically. Then retry blocked work intentionally. `/devflow recover` abandons stale execution records owned by the current session/runtime lineage without touching another session.
+
 ## Safe migration procedure
 
 1. Install `pi-devflow` while the old extensions are still available.

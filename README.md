@@ -32,7 +32,7 @@ pi install git:github.com/Lcryolite/pi-devflow@main
 Pin a release or commit for repeatable installs:
 
 ```bash
-pi install git:github.com/Lcryolite/pi-devflow@v0.1.4
+pi install git:github.com/Lcryolite/pi-devflow@v0.2.0
 # or
 pi install git:github.com/Lcryolite/pi-devflow@<commit-sha>
 ```
@@ -51,14 +51,14 @@ pi install .
 
 ## Use
 
-- The Todo widget is dynamic: it disappears when there is no ready/running/blocked work.
-- During work it occupies one summary line; `Ctrl+Shift+D` toggles the full tree anywhere without opening `/devflow`.
-- `/devflow` remains an optional management panel for per-row navigation, retry, and pause controls.
+- The Widget is owned by the current Pi session: work from other windows never appears or dispatches here.
+- Idle uses zero lines. Main work uses one summary line; Workflow work shows a live 3-line card with phase N/M, agent progress, elapsed time, resolved model, and latest safe action.
+- `Ctrl+Shift+D` toggles the current session's active execution tree and automatically reveals the current phase/agents; `/devflow` is optional management UI.
 - `/devflow-models` or `/devflow models` opens the interactive central/small/medium/big model selector.
 - Model routing is `small → fanout`, `medium → work`, `central → normal judge`, and `big → escalated judge`.
-- `/devflow status` prints current Goals and runnable work.
-- `/devflow pause` and `/devflow resume` control scheduling.
-- `/devflow doctor` validates state and reports conflicts.
+- `/devflow status` is session-local; `/devflow project` explicitly shows project-wide quarantined/history state.
+- `/devflow pause|resume|recover` controls only the current session. `/devflow adopt <goal-id>` explicitly adopts quarantined legacy work.
+- `/devflow doctor` validates state and reports migration or legacy conflicts.
 
 The model-facing tools are `devflow_normalize`, `devflow_goal`, `devflow_todo`, and `devflow_workflow`.
 
@@ -66,14 +66,17 @@ Automatic continuation does not bypass Pi permissions or dangerous-operation con
 
 ## Legacy migration
 
+**v0.2.0 is a breaking session-isolation upgrade. Close or reload every Pi window using Devflow before the first v0.2.0 session writes schema v3.** Old v0.1.x processes cannot safely coexist with schema v3 and may still have already-launched agents running.
+
+Schema-v2 work is fail-closed: active leases are released, continuations expire, Workflows are quarantined, and Goals become `legacy-unowned`. It will not appear or auto-run in a random window. Inspect with `/devflow project`, then use `/devflow adopt <goal-id>` and retry intentionally.
+
 At session start, `pi-devflow` checks the active branch for the latest `pi-codex-goal` custom entry and `rpiv-todo` tool snapshot. Import is atomic and keyed to the Pi session, so later changes in the same legacy session cannot create duplicates. Existing IDs are preserved when possible; collisions get deterministic import suffixes. Deleted legacy Todos are skipped and recorded as warnings.
 
 Read [`docs/MIGRATION.md`](docs/MIGRATION.md) before disabling the old extensions. `/devflow doctor` warns when legacy tools are still active but never changes Pi configuration.
 
 ## Runtime state
 
-Project identity is the **nearest Git repository root** above the Pi session cwd (or the cwd itself when no `.git` is found). Do not run long-lived Devflow work from your home directory as cwd — that used to dump unrelated Goals into one shared blob.
-
+Project identity is the nearest Git repository root above the Pi session cwd (or the cwd itself when no `.git` is found). Durable history and resource claims remain project-scoped, while Goal ownership, dispatch, recovery, evidence, Workflow control, Widget rendering, and model context are fenced to the originating Pi session.
 Project state is stored outside the repository:
 
 ```text

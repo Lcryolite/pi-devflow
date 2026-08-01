@@ -64,6 +64,21 @@ test("out-of-order workflow snapshots cannot regress projection", () => {
   assert.equal(same.workflowRuns.binding?.lastSnapshotSequence, 2);
 });
 
+
+test("terminal Todo or Goal cannot reserve a Workflow", () => {
+  const cancelledTodo = workflowState();
+  cancelledTodo.todos.todo!.status = "cancelled";
+  assert.throws(() => createWorkflowBinding(cancelledTodo, {
+    bindingId: "cancelled", upstreamRunId: "pending", todoId: "todo", phases: [{ title: "Inspect", role: "work" }],
+  }, "2026-07-30T00:00:03.000Z"), /terminal/);
+
+  const cancelledGoal = workflowState();
+  cancelledGoal.goals.goal!.status = "cancelled";
+  assert.throws(() => createWorkflowBinding(cancelledGoal, {
+    bindingId: "cancelled-goal", upstreamRunId: "pending", todoId: "todo", phases: [{ title: "Inspect", role: "work" }],
+  }, "2026-07-30T00:00:03.000Z"), /terminal/);
+});
+
 test("three-role model routing is deterministic", () => {
   const policy = {
     fanout: "openai/gpt-small",

@@ -35,7 +35,14 @@ export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: Work
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const adapter = await dependencies.getAdapter(ctx);
       const store = await dependencies.getStore(ctx);
+      const scope = dependencies.getScope(ctx);
       if (params.action === "start") {
+        const todoId = requireText(params.todoId, "todoId");
+        const before = await store.load();
+        const todo = before.todos[todoId];
+        if (!todo || before.goals[todo.goalId]?.ownerSessionId !== scope.sessionId) {
+          throw new Error(`Todo ${todoId} belongs to another Pi session`);
+        }
         const plan: DevflowWorkflowPlan = {
           name: requireText(params.name, "name"),
           description: requireText(params.description, "description"),
@@ -47,7 +54,7 @@ export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: Work
           })),
         };
         if (plan.phases.length === 0) throw new Error("phases is required");
-        const bindingId = await adapter.start(requireText(params.todoId, "todoId"), plan);
+        const bindingId = await adapter.start(todoId, plan);
         const state = await store.load();
         return {
           content: [{ type: "text", text: `Started Workflow binding ${bindingId}` }],
@@ -57,9 +64,10 @@ export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: Work
 
       if (params.action === "status") {
         const state = await store.load();
-        const bindings = params.bindingId
-          ? [state.workflowRuns[params.bindingId]].filter((binding) => binding !== undefined)
-          : Object.values(state.workflowRuns);
+        const bindings = (params.bindingId
+          ? [state.workflowRuns[params.bindingId]]
+          : Object.values(state.workflowRuns))
+          .filter((binding): binding is NonNullable<typeof binding> => binding?.ownerSessionId === scope.sessionId);
         return {
           content: [{
             type: "text",
@@ -74,6 +82,8 @@ export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: Work
       }
 
       const bindingId = requireText(params.bindingId, "bindingId");
+      const binding = (await store.load()).workflowRuns[bindingId];
+      if (!binding || binding.ownerSessionId !== scope.sessionId) throw new Error(`Workflow ${bindingId} belongs to another Pi session`);
       const changed = params.action === "pause"
         ? await adapter.pause(bindingId)
         : params.action === "resume"

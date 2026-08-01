@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { auditGoal, completeGoalFromAudit } from "./audit.js";
 
 import { normalizeTitle } from "./text.js";
-import type { AddGoalInput, AddTodoInput, ProjectState, TodoStatus } from "./types.js";
+import { LEGACY_UNOWNED_SESSION, type AddGoalInput, type AddTodoInput, type ProjectState, type TodoStatus } from "./types.js";
 
 function clone(state: ProjectState): ProjectState {
   return structuredClone(state);
@@ -17,7 +17,7 @@ export function assertSafeRecordKey(value: string, label: string): void {
 
 export function createProjectState(root: string, now: string): ProjectState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     revision: 0,
     project: {
       id: createHash("sha256").update(root).digest("hex").slice(0, 16),
@@ -34,7 +34,8 @@ export function createProjectState(root: string, now: string): ProjectState {
       paused: false,
       maxConcurrentMain: 1,
       maxConcurrentWorkflow: 2,
-      grill: {},
+      grill: { lastAskedBlockerKeys: {} },
+      sessionPaused: {},
       continuationKeys: {},
       activeLeases: {},
     },
@@ -49,6 +50,7 @@ export function addGoal(state: ProjectState, input: AddGoalInput, now: string): 
   const next = clone(state);
   next.goals[input.id] = {
     id: input.id,
+    ownerSessionId: input.ownerSessionId ?? LEGACY_UNOWNED_SESSION,
     title: normalizeTitle(input.title),
     objective: input.objective,
     successCriteria: structuredClone(input.successCriteria),
@@ -134,6 +136,10 @@ export function addEvidence(
   evidence: ProjectState["evidence"][string],
 ): ProjectState {
   assertSafeRecordKey(evidence.id, "Evidence id");
+  const existing = state.evidence[evidence.id];
+  if (existing && existing.ownerSessionId !== evidence.ownerSessionId) {
+    throw new Error(`Evidence ${evidence.id} belongs to another Pi session`);
+  }
   const next = clone(state);
   next.evidence[evidence.id] = structuredClone(evidence);
   return next;
@@ -153,7 +159,9 @@ export function addCriterionEvidence(
   if (!goal) throw new Error(`Goal ${goalId} does not exist`);
   const criterion = goal.successCriteria.find((item) => item.id === criterionId);
   if (!criterion) throw new Error(`Criterion ${criterionId} does not exist`);
-  if (!next.evidence[evidenceId]) throw new Error(`Evidence ${evidenceId} does not exist`);
+  const evidence = next.evidence[evidenceId];
+  if (!evidence) throw new Error(`Evidence ${evidenceId} does not exist`);
+  if (evidence.ownerSessionId !== goal.ownerSessionId) throw new Error(`Evidence ${evidenceId} belongs to another Pi session`);
   if (!criterion.evidenceIds.includes(evidenceId)) criterion.evidenceIds.push(evidenceId);
   goal.updatedAt = now;
   next.project.updatedAt = now;

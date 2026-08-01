@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 
 import { blockTodo, markGrillAsked } from "../domain/transitions.js";
 import { applySchedulePlan, markContinuation, planSchedule } from "../domain/scheduler.js";
-import type { ProjectState, WorkflowPlanData } from "../domain/types.js";
+import type { ExecutionScope, ProjectState, WorkflowPlanData } from "../domain/types.js";
 import { selectPendingGrill } from "../grill.js";
 import type { ProjectStore } from "../store/project-store.js";
 import type { DevflowWorkflowAdapter } from "../workflow/adapter.js";
@@ -36,17 +36,19 @@ export function decideReservedContinuation(state: ProjectState, key: string): Co
   return { kind: "send_main", todoId: todo.id, key, title: todo.title };
 }
 
-export function filterReservedKeys(state: ProjectState, allowMain: boolean): string[] {
+export function filterReservedKeys(state: ProjectState, allowMain: boolean, scope?: ExecutionScope): string[] {
   return Object.values(state.scheduler.continuationKeys)
     .filter((record) => {
       const todo = state.todos[record.todoId];
-      return record.status === "reserved" && (allowMain || todo?.execution === "workflow");
+      return record.status === "reserved"
+        && (!scope || (record.ownerSessionId === scope.sessionId && record.ownerRuntimeId === scope.runtimeId))
+        && (allowMain || todo?.execution === "workflow");
     })
     .map((record) => record.key);
 }
 
-export function decideGrill(state: ProjectState): GrillDecision | undefined {
-  const grill = selectPendingGrill(state);
+export function decideGrill(state: ProjectState, sessionId?: string): GrillDecision | undefined {
+  const grill = selectPendingGrill(state, sessionId);
   if (!grill) return undefined;
   return {
     key: grill.key,
@@ -56,8 +58,8 @@ export function decideGrill(state: ProjectState): GrillDecision | undefined {
   };
 }
 
-export function scheduleForDispatch(state: ProjectState, now: string, allowMain: boolean) {
-  const plan = planSchedule(state, now);
+export function scheduleForDispatch(state: ProjectState, now: string, allowMain: boolean, scope?: ExecutionScope) {
+  const plan = planSchedule(state, now, scope);
   return allowMain ? plan : { ...plan, starts: plan.starts.filter((start) => start.mode === "workflow") };
 }
 
@@ -65,6 +67,7 @@ export interface DispatchDeps {
   pi: ExtensionAPI;
   getStore(ctx: ExtensionContext): Promise<ProjectStore>;
   getAdapter(ctx: ExtensionContext): Promise<DevflowWorkflowAdapter>;
+  getScope(ctx: ExtensionContext): ExecutionScope;
 }
 
 async function applyDecision(
@@ -136,18 +139,19 @@ export async function runDispatchPass(
   allowMain: boolean,
 ): Promise<void> {
   const projectStore = await deps.getStore(ctx);
-  const preview = scheduleForDispatch(await projectStore.load(), new Date().toISOString(), allowMain);
+  const scope = deps.getScope(ctx);
+  const preview = scheduleForDispatch(await projectStore.load(), new Date().toISOString(), allowMain, scope);
   const now = new Date().toISOString();
   const scheduled = preview.starts.length > 0
     ? await projectStore.transact(
-        (draft) => applySchedulePlan(draft, scheduleForDispatch(draft, now, allowMain), now),
+        (draft) => applySchedulePlan(draft, scheduleForDispatch(draft, now, allowMain, scope), now, scope),
         { actor: "extension:scheduler" },
       )
     : await projectStore.load();
 
   // Decisions use the post-schedule snapshot (same as pre-refactor) so concurrent
   // reserved keys are independent of each other's side effects in this pass.
-  const reservedKeys = filterReservedKeys(scheduled, allowMain);
+  const reservedKeys = filterReservedKeys(scheduled, allowMain, scope);
   for (const key of reservedKeys) {
     const decision = decideReservedContinuation(scheduled, key);
     await applyDecision(deps, ctx, projectStore, decision);
@@ -155,9 +159,9 @@ export async function runDispatchPass(
   if (reservedKeys.length > 0) return;
 
   const state = await projectStore.load();
-  const grill = decideGrill(state);
+  const grill = decideGrill(state, scope.sessionId);
   if (!grill) return;
-  await projectStore.transact((draft) => markGrillAsked(draft, grill.key), { actor: "extension:grill" });
+  await projectStore.transact((draft) => markGrillAsked(draft, grill.key, scope.sessionId), { actor: "extension:grill" });
   deps.pi.sendMessage({
     customType: "devflow-grill",
     content: `Ask the user exactly one question to unblock Todo ${grill.todoId}: ${grill.question}${grill.recommendedAnswer ? ` Recommended answer: ${grill.recommendedAnswer}` : ""}`,

@@ -142,7 +142,7 @@ src/
 
 ```typescript
 interface ProjectState {
-  schemaVersion: 1;
+  schemaVersion: 3;
   revision: number;
   project: {
     id: string;
@@ -165,6 +165,7 @@ interface ProjectState {
 ```typescript
 interface Goal {
   id: GoalId;
+  ownerSessionId: string;
   title: string;
   objective: string;
   successCriteria: SuccessCriterion[];
@@ -192,6 +193,7 @@ interface SuccessCriterion {
 - `completed` 仅在所有 required 成功标准都有有效证据时允许。
 - `blocked` 是运行态，不是终止态。
 - Goal 的依赖必须无环。
+- Goal、evidence、lease、continuation 和 Workflow binding 均带 session owner；跨 session 依赖和证据引用禁止隐式建立。
 - Goal B 依赖 A 时，A 完成前 B 的 Todo 不得进入 Ready。
 - Goal 被取消不自动取消其依赖 Goal；调度器重新评估并将无法满足的后继标记为 blocked。
 
@@ -500,17 +502,19 @@ judge 升级仅在多个 Agent 结论冲突、验证失败、或涉及架构/安
 - 启动时校验 snapshot；损坏时从 events journal 重建。
 - 旧锁只有在持有进程不存在且超过租约后才可回收。
 
-### 12.3 会话与项目状态
+### 12.3 会话、窗口与项目状态
 
-项目状态是 canonical source。Pi session entry 只保存轻量引用和最近 revision，用于会话审计，不复制完整状态。
+项目状态是 canonical source，但自动执行权属于创建 Goal 的 Pi session。相同 Git root 的窗口共享 durable history 和全局资源冲突检查，不共享 Widget、context injection、调度容量、continuation、Grill、evidence attribution、恢复或 Workflow 控制。
 
-`session_start`、`session_tree`、`session_compact` 和 `/reload` 后重新加载项目状态。项目恢复不得自动重复启动已存在 lease 的任务。
+每个执行记录同时保存 `ownerSessionId` 和 `ownerRuntimeId`。`session_start` 不得恢复别的 session/runtime；`session_shutdown` 只处理当前 runtime。无 session id 的临时窗口使用 runtime-unique `ephemeral:<uuid>`，禁止公共 fallback。
 
 ### 12.4 Schema migration
 
 - `schemaVersion` 必填。
 - migration 必须是确定性纯函数。
 - 迁移前保留备份。
+- schema v2→v3 将旧 Goal 标记为 `legacy-unowned`，释放旧 lease、过期 continuation、隔离 Workflow；不得由首个升级窗口自动认领。
+- v0.2.0 首次写入前必须关闭或 reload 所有 v0.1.x 窗口；旧进程与 schema v3 不兼容。
 - 不支持的未来版本以只读模式打开，禁止降级写入。
 
 ## 13. Pi 接口
@@ -550,11 +554,11 @@ Phase 1 只需实现 `/devflow status` 和 `/devflow doctor` 的文本版本；�
 
 ### 13.3 Lifecycle hooks
 
-- `session_start`：解析项目根、加载状态、恢复 UI、运行一次 reconcile。
-- `before_agent_start`：注入当前 Goal、running Todo 和必要调度规则，不注入完整历史。
-- `tool_execution_end`：收集与活动 Todo 相关的证据引用。
+- `session_start`：建立 session/runtime scope、解析项目根、加载状态和恢复当前 session UI；禁止抢占其他窗口 lease。
+- `before_agent_start`：只注入当前 session 的 Goal、running Todo 和必要调度规则，不注入项目或其他窗口历史。
+- `tool_execution_end`：只向当前 runtime 唯一 main lease 收集带 owner 的证据引用。
 - `agent_settled`：若有 Ready 工作且无 continuation，排队一次 follow-up。
-- `session_shutdown`：释放进程资源和 lease；不删除项目状态。
+- `session_shutdown`：只暂停/释放当前 runtime 的 Workflow 和 lease；不修改其他窗口或删除项目状态。
 - `model_select`：更新 inherit 模型显示和后续 Workflow 路由。
 
 ### 13.4 自动 continuation
@@ -592,9 +596,11 @@ Devflow · 2 goals · 3 ready · 1 blocked
 
 树组件必须保证每行不超过宽度，使用 `truncateToWidth`，状态更新后调用 `invalidate()` 和 `tui.requestRender()`，主题变化时重建预着色内容，窄终端降级为单行状态。
 
-### 14.3 Widget 与面板关系
+### 14.3 Dynamic Widget 与面板关系
 
-动态 Widget 在无 ready/running/blocked 工作时不渲染；工作中默认仅占一行摘要。`Ctrl+Shift+D` 在普通 TUI 状态直接切换完整树与紧凑/隐藏态，不依赖 `/devflow`；`/devflow` 仅保留为可选的逐行管理面板。
+Widget 绑定当前 session 的 active run，而不是扫描项目任务总数。无活动工作时渲染 0 行；普通 main 工作显示一行；Workflow 显示最多三行：任务标题/耗时、phase N/M + agent 完成数 + actual model、最新安全动作或 blocker。状态事件立即刷新，活动时每秒仅重绘 elapsed，不写 Store revision。
+
+`Ctrl+Shift+D` 直接切换当前 session 的 active execution tree，并自动展开当前 Goal→Workflow→phase→agent 路径。完整历史和项目级隔离状态只在 `/devflow` 或显式 `/devflow project` 中查看。
 
 ### 14.4 非 TUI 模式
 

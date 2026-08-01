@@ -64,19 +64,26 @@ export function registerDevflowTodoTool(pi: ExtensionAPI, dependencies: ToolDepe
     parameters: TodoParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const projectStore = await dependencies.getStore(ctx);
+      const scope = dependencies.getScope(ctx);
+      const requireOwnedTodo = (state: Awaited<ReturnType<typeof projectStore.load>>, id: string) => {
+        const todo = state.todos[id];
+        if (!todo) throw new Error(`Todo ${id} does not exist`);
+        if (state.goals[todo.goalId]?.ownerSessionId !== scope.sessionId) throw new Error(`Todo ${id} belongs to another Pi session`);
+        return todo;
+      };
       if (params.action === "list") {
         const state = await projectStore.load();
-        return textResult(listTodos(state, params.goalId), state);
+        return textResult(listTodos(state, params.goalId, scope.sessionId), state);
       }
       if (params.action === "get") {
         const state = await projectStore.load();
-        const todo = state.todos[requireText(params.id, "id")];
-        if (!todo) throw new Error(`Todo ${params.id} does not exist`);
+        const todo = requireOwnedTodo(state, requireText(params.id, "id"));
         return textResult(JSON.stringify(todo, null, 2), state);
       }
       if (params.action === "cancel") {
         const state = await projectStore.load();
         const todoId = requireText(params.id, "id");
+        requireOwnedTodo(state, todoId);
         const adapter = await dependencies.getAdapter(ctx);
         await stopWorkflowsForTodos(
           adapter,
@@ -88,6 +95,8 @@ export function registerDevflowTodoTool(pi: ExtensionAPI, dependencies: ToolDepe
       const now = new Date().toISOString();
       const next = await projectStore.transact((state) => {
         if (params.action === "create") {
+          const goalId = requireText(params.goalId, "goalId");
+          if (state.goals[goalId]?.ownerSessionId !== scope.sessionId) throw new Error(`Goal ${goalId} belongs to another Pi session`);
           const profileFields = [params.independentUnits, params.hasSequentialDependency, params.writeScope, params.mergeableResults, params.estimatedUnits];
           const hasProfile = profileFields.some((value) => value !== undefined);
           if (hasProfile && profileFields.some((value) => value === undefined)) {
@@ -95,7 +104,7 @@ export function registerDevflowTodoTool(pi: ExtensionAPI, dependencies: ToolDepe
           }
           return addTodo(state, {
             id: params.id?.trim() || randomUUID(),
-            goalId: requireText(params.goalId, "goalId"),
+            goalId,
             title: requireText(params.title, "title"),
             ...(params.parentId ? { parentId: params.parentId } : {}),
             ...(params.description ? { description: params.description } : {}),
@@ -117,6 +126,7 @@ export function registerDevflowTodoTool(pi: ExtensionAPI, dependencies: ToolDepe
         }
 
         const id = requireText(params.id, "id");
+        requireOwnedTodo(state, id);
         if (params.action === "update") {
           if (params.status === "blocked") {
             if (params.strategy?.trim()) {

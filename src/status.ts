@@ -9,9 +9,16 @@ const symbols: Record<TodoStatus, string> = {
   cancelled: "×",
 };
 
-export function formatStatus(state: ProjectState): string {
-  const goals = Object.values(state.goals);
-  const todos = Object.values(state.todos);
+function sessionGoalIds(state: ProjectState, sessionId?: string): Set<string> {
+  return new Set(Object.values(state.goals)
+    .filter((goal) => !sessionId || goal.ownerSessionId === sessionId)
+    .map((goal) => goal.id));
+}
+
+export function formatStatus(state: ProjectState, sessionId?: string): string {
+  const goalIds = sessionGoalIds(state, sessionId);
+  const goals = Object.values(state.goals).filter((goal) => goalIds.has(goal.id));
+  const todos = Object.values(state.todos).filter((todo) => goalIds.has(todo.goalId) && !todo.origin);
   const ready = todos.filter((todo) => todo.status === "ready");
   const running = todos.filter((todo) => todo.status === "in_progress");
   const blocked = todos.filter((todo) => todo.status === "blocked");
@@ -28,14 +35,15 @@ export function formatStatus(state: ProjectState): string {
   return lines.join("\n");
 }
 
-export function listGoals(state: ProjectState): string {
-  const goals = Object.values(state.goals);
+export function listGoals(state: ProjectState, sessionId?: string): string {
+  const goals = Object.values(state.goals).filter((goal) => !sessionId || goal.ownerSessionId === sessionId);
   if (goals.length === 0) return "No goals.";
   return goals.map((goal) => `${goal.status === "completed" ? "✓" : goal.status === "blocked" ? "!" : "●"} ${goal.id} ${goal.title}`).join("\n");
 }
 
-export function listTodos(state: ProjectState, goalId?: string): string {
-  const todos = Object.values(state.todos).filter((todo) => !goalId || todo.goalId === goalId);
+export function listTodos(state: ProjectState, goalId?: string, sessionId?: string): string {
+  const goals = sessionGoalIds(state, sessionId);
+  const todos = Object.values(state.todos).filter((todo) => goals.has(todo.goalId) && (!goalId || todo.goalId === goalId));
   if (todos.length === 0) return "No todos.";
   return todos.map((todo) => `${todo.status.padEnd(11)} #${todo.id} ${todo.title}`).join("\n");
 }

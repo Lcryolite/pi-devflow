@@ -10,6 +10,7 @@ import type { WorkflowRunResult, WorkflowSnapshot } from "@quintinshaw/pi-dynami
 import {
   addGoal,
   addTodo,
+  createWorkflowBinding,
   DevflowWorkflowAdapter,
   ProjectStore,
   type WorkflowManagerLike,
@@ -28,6 +29,17 @@ class FakeManager implements WorkflowManagerLike {
       meta: { name: "review", description: "Review" }, result: {}, logs: [], phases: ["Inspect"], agentCount: 1, durationMs: 1,
     };
     return { runId: "run", promise: Promise.resolve(result) };
+  }
+  pause() { return true; }
+  async resume() { return true; }
+  stop() { return true; }
+}
+
+class HoldingManager extends EventEmitter implements WorkflowManagerLike {
+  starts = 0;
+  startInBackground() {
+    this.starts += 1;
+    return { runId: `held-${this.starts}`, promise: new Promise<WorkflowRunResult>(() => {}) };
   }
   pause() { return true; }
   async resume() { return true; }
@@ -140,4 +152,105 @@ test("stopping a run cannot be overwritten by its aborted promise", async (t) =>
   assert.equal(await adapter.stop(bindingId), true);
   await adapter.wait(bindingId);
   assert.equal((await store.load()).workflowRuns[bindingId]?.status, "stopped");
+});
+
+
+test("concurrent runtimes reserve before starting so only one upstream Workflow launches", async (t) => {
+  const stateRoot = await mkdtemp(join(tmpdir(), "pi-devflow-workflow-race-"));
+  t.after(() => rm(stateRoot, { recursive: true, force: true }));
+  const firstStore = await ProjectStore.open("/repo", { stateRoot });
+  const secondStore = await ProjectStore.open("/repo", { stateRoot });
+  await firstStore.transact((state) => {
+    let next = addGoal(state, { id: "goal", ownerSessionId: "session", title: "Goal", objective: "Review", successCriteria: [] }, new Date().toISOString());
+    return addTodo(next, { id: "todo", goalId: "goal", title: "Review" }, new Date().toISOString());
+  });
+  const manager = new HoldingManager();
+  const first = new DevflowWorkflowAdapter(manager, firstStore, () => "main", {}, undefined, { sessionId: "session", runtimeId: "one" });
+  const second = new DevflowWorkflowAdapter(manager, secondStore, () => "main", {}, undefined, { sessionId: "session", runtimeId: "two" });
+  const plan = { name: "review", description: "Review", phases: [{ title: "Inspect", role: "work" as const, prompts: ["Read"] }] };
+
+  const results = await Promise.allSettled([first.start("todo", plan), second.start("todo", plan)]);
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(manager.starts, 1);
+});
+
+
+test("planned cancellation retries the running stop path when launch wins the CAS race", async (t) => {
+  const stateRoot = await mkdtemp(join(tmpdir(), "pi-devflow-workflow-cancel-race-"));
+  t.after(() => rm(stateRoot, { recursive: true, force: true }));
+  const store = await ProjectStore.open("/repo", { stateRoot });
+  await store.transact((state) => {
+    let next = addGoal(state, { id: "goal", ownerSessionId: "session", title: "Goal", objective: "Review", successCriteria: [] }, new Date().toISOString());
+    next = addTodo(next, { id: "todo", goalId: "goal", title: "Review" }, new Date().toISOString());
+    return createWorkflowBinding(next, {
+      bindingId: "binding", upstreamRunId: "run", todoId: "todo", ownerSessionId: "session", ownerRuntimeId: "runtime", status: "planned",
+      phases: [{ title: "Inspect", role: "work" }],
+    }, new Date().toISOString());
+  });
+  const manager = new FakeManager();
+  let stops = 0;
+  manager.stop = () => { stops += 1; return true; };
+  const adapter = new DevflowWorkflowAdapter(manager, store, () => "main", {}, undefined, { sessionId: "session", runtimeId: "runtime" });
+  const original = store.transact.bind(store);
+  let injected = false;
+  store.transact = async (mutator, options = {}) => {
+    if (!injected && options.actor === "workflow:binding:cancel-planned") {
+      injected = true;
+      await original((state) => {
+        const next = structuredClone(state);
+        next.workflowRuns.binding!.status = "running";
+        return next;
+      }, { actor: "test:launch-won" });
+    }
+    return original(mutator, options);
+  };
+
+  assert.equal(await adapter.stop("binding"), true);
+  assert.equal(stops, 1);
+  assert.equal((await store.load()).workflowRuns.binding!.status, "stopped");
+});
+
+
+test("delayed lifecycle events cannot resurrect a stopped Workflow", async (t) => {
+  const stateRoot = await mkdtemp(join(tmpdir(), "pi-devflow-workflow-delayed-event-"));
+  t.after(() => rm(stateRoot, { recursive: true, force: true }));
+  const store = await ProjectStore.open("/repo", { stateRoot });
+  await store.transact((state) => {
+    let next = addGoal(state, { id: "goal", title: "Goal", objective: "Review", successCriteria: [] }, new Date().toISOString());
+    return addTodo(next, { id: "todo", goalId: "goal", title: "Review" }, new Date().toISOString());
+  });
+  const manager = new LifecycleManager();
+  const adapter = new DevflowWorkflowAdapter(manager, store, () => "main", {});
+  const bindingId = await adapter.start("todo", { name: "review", description: "Review", phases: [{ title: "Inspect", role: "work", prompts: ["read"] }] });
+
+  assert.equal(await adapter.stop(bindingId), true);
+  manager.emit("resumed", { runId: "lifecycle-run" });
+  manager.emit("paused", { runId: "lifecycle-run" });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.equal((await store.load()).workflowRuns[bindingId]!.status, "stopped");
+  assert.equal((await store.load()).scheduler.activeLeases.todo, undefined);
+});
+
+
+test("a delayed paused echo cannot undo a successful resume", async (t) => {
+  const stateRoot = await mkdtemp(join(tmpdir(), "pi-devflow-workflow-delayed-pause-"));
+  t.after(() => rm(stateRoot, { recursive: true, force: true }));
+  const store = await ProjectStore.open("/repo", { stateRoot });
+  await store.transact((state) => {
+    let next = addGoal(state, { id: "goal", title: "Goal", objective: "Review", successCriteria: [] }, new Date().toISOString());
+    return addTodo(next, { id: "todo", goalId: "goal", title: "Review" }, new Date().toISOString());
+  });
+  const manager = new HoldingManager();
+  const adapter = new DevflowWorkflowAdapter(manager, store, () => "main", {});
+  const bindingId = await adapter.start("todo", { name: "review", description: "Review", phases: [{ title: "Inspect", role: "work", prompts: ["read"] }] });
+
+  assert.equal(await adapter.pause(bindingId), true);
+  assert.equal(await adapter.resume(bindingId), true);
+  manager.emit("paused", { runId: "held-1" });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  const state = await store.load();
+  assert.equal(state.workflowRuns[bindingId]!.status, "running");
+  assert.equal(state.scheduler.activeLeases.todo?.mode, "workflow");
 });

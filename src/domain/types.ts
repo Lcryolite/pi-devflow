@@ -3,6 +3,13 @@ export type TodoStatus = "pending" | "ready" | "in_progress" | "blocked" | "comp
 export type ExecutionMode = "main" | "workflow" | "undecided";
 export type ModelRole = "fanout" | "work" | "judge";
 
+export const LEGACY_UNOWNED_SESSION = "legacy-unowned";
+
+export interface ExecutionScope {
+  sessionId: string;
+  runtimeId: string;
+}
+
 export interface SuccessCriterion {
   id: string;
   text: string;
@@ -13,6 +20,7 @@ export interface SuccessCriterion {
 
 export interface Evidence {
   id: string;
+  ownerSessionId: string;
   kind: "test" | "file" | "command" | "review" | "workflow" | "user" | "legacy";
   summary: string;
   locator?: string;
@@ -60,6 +68,7 @@ export interface WorkflowPlanData {
 
 export interface Goal {
   id: string;
+  ownerSessionId: string;
   title: string;
   objective: string;
   successCriteria: SuccessCriterion[];
@@ -127,10 +136,15 @@ export interface WorkflowBinding {
   id: string;
   todoId: string;
   upstreamRunId: string;
+  ownerSessionId: string;
+  ownerRuntimeId: string;
   status: "planned" | "running" | "paused" | "completed" | "failed" | "stopped";
   phases: WorkflowPhaseProjection[];
   lastSnapshotSequence: number;
   startedAt?: string;
+  currentPhaseTitle?: string;
+  lastProgressAt?: string;
+  lastAction?: string;
   endedAt?: string;
 }
 
@@ -138,6 +152,8 @@ export interface ContinuationRecord {
   key: string;
   todoId: string;
   revision: number;
+  ownerSessionId: string;
+  ownerRuntimeId: string;
   status: "reserved" | "sent" | "claimed" | "expired";
   createdAt: string;
 }
@@ -147,6 +163,8 @@ export interface ExecutionLease {
   todoId: string;
   goalId: string;
   mode: ExecutionMode;
+  ownerSessionId: string;
+  ownerRuntimeId: string;
   resourceClaims: ResourceClaim[];
   acquiredAt: string;
 }
@@ -160,7 +178,7 @@ export interface MigrationRecord {
 }
 
 export interface ProjectState {
-  schemaVersion: 2;
+  schemaVersion: 3;
   revision: number;
   project: { id: string; root: string; createdAt: string; updatedAt: string };
   goals: Record<string, Goal>;
@@ -172,7 +190,8 @@ export interface ProjectState {
     paused: boolean;
     maxConcurrentMain: number;
     maxConcurrentWorkflow: number;
-    grill: { lastAskedBlockerKey?: string };
+    grill: { lastAskedBlockerKey?: string; lastAskedBlockerKeys: Record<string, string> };
+    sessionPaused: Record<string, boolean>;
     continuationKeys: Record<string, ContinuationRecord>;
     activeLeases: Record<string, ExecutionLease>;
   };
@@ -182,6 +201,7 @@ export interface ProjectState {
 
 export interface AddGoalInput {
   id: string;
+  ownerSessionId?: string;
   title: string;
   objective: string;
   successCriteria: SuccessCriterion[];

@@ -48,23 +48,31 @@ export function registerDevflowGoalTool(pi: ExtensionAPI, dependencies: ToolDepe
     parameters: GoalParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const projectStore = await dependencies.getStore(ctx);
+      const scope = dependencies.getScope(ctx);
+      const requireOwnedGoal = (state: Awaited<ReturnType<typeof projectStore.load>>, id: string) => {
+        const goal = state.goals[id];
+        if (!goal) throw new Error(`Goal ${id} does not exist`);
+        if (goal.ownerSessionId !== scope.sessionId) throw new Error(`Goal ${id} belongs to another Pi session`);
+        return goal;
+      };
       if (params.action === "list") {
         const state = await projectStore.load();
-        return textResult(listGoals(state), state);
+        return textResult(listGoals(state, scope.sessionId), state);
       }
       if (params.action === "get") {
         const state = await projectStore.load();
-        const goal = state.goals[requireText(params.id, "id")];
-        if (!goal) throw new Error(`Goal ${params.id} does not exist`);
+        const goal = requireOwnedGoal(state, requireText(params.id, "id"));
         return textResult(JSON.stringify(goal, null, 2), state);
       }
       if (params.action === "audit") {
         const state = await projectStore.load();
+        requireOwnedGoal(state, requireText(params.id, "id"));
         return textResult(JSON.stringify(auditGoal(state, requireText(params.id, "id")), null, 2), state);
       }
       if (params.action === "cancel") {
         const state = await projectStore.load();
         const goalId = requireText(params.id, "id");
+        requireOwnedGoal(state, goalId);
         const todoIds = new Set(Object.values(state.todos).filter((todo) => todo.goalId === goalId).map((todo) => todo.id));
         const adapter = await dependencies.getAdapter(ctx);
         await stopWorkflowsForTodos(adapter, state, (binding) => todoIds.has(binding.todoId));
@@ -83,6 +91,7 @@ export function registerDevflowGoalTool(pi: ExtensionAPI, dependencies: ToolDepe
           const title = requireText(params.title, "title");
           let created = addGoal(state, {
             id,
+            ownerSessionId: scope.sessionId,
             title,
             objective: requireText(params.objective, "objective"),
             successCriteria: criteria,
@@ -102,6 +111,7 @@ export function registerDevflowGoalTool(pi: ExtensionAPI, dependencies: ToolDepe
         }
 
         const id = requireText(params.id, "id");
+        requireOwnedGoal(state, id);
         if (params.action === "update") {
           let updated = updateGoal(state, id, {
             ...(params.title !== undefined ? { title: params.title } : {}),
@@ -116,6 +126,7 @@ export function registerDevflowGoalTool(pi: ExtensionAPI, dependencies: ToolDepe
               const existing = updated.evidence[evidenceId];
               const evidence: Evidence = {
                 id: evidenceId,
+                ownerSessionId: scope.sessionId,
                 kind: params.evidenceKind ?? existing?.kind ?? "user",
                 summary: params.evidenceSummary ?? existing?.summary ?? evidenceId,
                 ...(params.evidenceLocator ? { locator: params.evidenceLocator } : existing?.locator ? { locator: existing.locator } : {}),

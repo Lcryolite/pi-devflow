@@ -57,12 +57,14 @@ test("working widget defaults to one dynamic summary line", () => {
   assert.match(lines[0]!, /^◆ Devflow · 1 running · Ctrl\+Shift\+D 展开 · Parent Todo$/);
 });
 
-test("expanded widget renders the full tree without an interactive cursor", () => {
-  const lines = renderDynamicWidget(widgetState(), 120, theme, new Set(["goal:goal-1"]), true);
+test("expanded widget renders the full active tree without an interactive cursor", () => {
+  const state = widgetState();
+  state.todos.parent!.status = "in_progress";
+  const lines = renderDynamicWidget(state, 120, theme, new Set(["goal:goal-1"]), true);
 
   assert.deepEqual(lines, [
     "▼ ● #1 Persistent tree",
-    "  ▶ ○ #1.1 Parent Todo",
+    "  ▶ ● #1.1 Parent Todo",
   ]);
   assert.ok(lines.every((line) => !line.startsWith(">")));
 });
@@ -93,6 +95,7 @@ test("widget auto-collapses only when work transitions to idle", () => {
 
 test("interactive tree and persistent widget share expansion state", () => {
   const state = widgetState();
+  state.todos.parent!.status = "in_progress";
   const expanded = new Set(["goal:goal-1"]);
   const controller = new TreeController(state, expanded);
 

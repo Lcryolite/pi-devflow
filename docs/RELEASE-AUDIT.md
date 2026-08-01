@@ -47,10 +47,10 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 
 ## Observed local checks
 
-- `npm run verify`: TypeScript clean; 47 tests passed.
+- `npm run verify`: TypeScript clean; 78 tests passed.
 - `npm run smoke:platform`: passed on Linux x64, Node v24.14.0.
 - Skill validator: `Skill is valid!`.
-- `npm pack --dry-run --json`: `pi-devflow@0.1.4`, 36 packaged files, 51,358 bytes.
+- `npm pack --dry-run --json`: `pi-devflow@0.2.0`, 48 packaged files, 63,737 bytes.
 - Local `pi install .`: installed and listed by Pi.
 - Pi RPC smoke on Pi 0.82.1: `/devflow` registered and `/devflow doctor` returned valid revision 0.
 - Isolated Pi TUI smoke on Pi 0.82.1: `/devflow` opened the panel, rendered navigation/expand help, and exited without a crash.
@@ -59,10 +59,13 @@ This audit maps the Phase 2–5 request to repository artifacts and observed che
 - `v0.1.2` adds persistent Goal/Todo tree rendering to the Todo widget; focused widget tests verify active and completed Goals, hierarchy, arrows, status symbols, and absence of an interactive cursor.
 - `v0.1.3` adds `/devflow-models`, routes medium to work, pins every generated Workflow phase to its resolved model, shares panel/Widget expansion state, and auto-collapses completed Goals.
 - `v0.1.4` makes the Widget genuinely dynamic: idle renders zero lines, active work renders one summary line, and `Ctrl+Shift+D` toggles the full tree globally without opening `/devflow`.
+- `v0.2.0` introduces schema-v3 session/runtime ownership across Goals, evidence, leases, continuations, dispatch, recovery, Workflow bindings, tools, context injection, panel, and Widget. Legacy execution is quarantined fail-closed.
+- The compact Workflow Widget was independently reimplemented from the requested `pi-task` behavior (AGPL source was reference-only): phase N/M, agent progress, actual model, elapsed clock, latest safe action, active-path expansion, and zero idle lines.
+- Three adversarial reviews found cross-window recovery, duplicate start, stale rollback, foreign evidence, migration, cancellation, and adoption blockers; fixes are covered by multi-session/runtime and Workflow reservation tests.
 
 ## Distribution gates
 
 - Repository: [`github.com/Lcryolite/pi-devflow`](https://github.com/Lcryolite/pi-devflow).
-- Supported release tag: `v0.1.4` (resolve the immutable commit with `git rev-list -n 1 v0.1.4`).
-- GitHub installation command: `pi install git:github.com/Lcryolite/pi-devflow@v0.1.4`; validate registration with `/devflow doctor` after reload.
+- Supported release tag: `v0.2.0` (resolve the immutable commit with `git rev-list -n 1 v0.2.0`).
+- GitHub installation command: `pi install git:github.com/Lcryolite/pi-devflow@v0.2.0`; close/reload all older Devflow windows before first use, then validate with `/devflow doctor`.
 - npm publication remains intentionally deferred; it was optional and GitHub is the supported distribution channel.

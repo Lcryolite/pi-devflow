@@ -11,7 +11,7 @@ export class TreeController {
   private selectedKey: string | undefined;
   private focusedGoalId: string | undefined;
 
-  constructor(private state: ProjectState, expandedIds?: Set<string>) {
+  constructor(private state: ProjectState, expandedIds?: Set<string>, private readonly ownerSessionId?: string) {
     this.expandedIds = expandedIds ?? new Set<string>();
   }
 
@@ -21,7 +21,7 @@ export class TreeController {
   }
 
   rows(): TreeRow[] {
-    return projectTreeRows(this.state, this.expandedIds, this.focusedGoalId);
+    return projectTreeRows(this.state, this.expandedIds, this.focusedGoalId, this.ownerSessionId);
   }
 
   selectedRow(): TreeRow | undefined {

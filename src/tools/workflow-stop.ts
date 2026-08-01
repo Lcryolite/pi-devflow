@@ -7,8 +7,8 @@ export async function stopWorkflowsForTodos(
   ownsTodo: (binding: WorkflowBinding) => boolean,
 ): Promise<void> {
   for (const binding of Object.values(state.workflowRuns)) {
-    if (ownsTodo(binding) && (binding.status === "running" || binding.status === "paused")) {
-      await adapter.stop(binding.id);
+    if (ownsTodo(binding) && (binding.status === "planned" || binding.status === "running" || binding.status === "paused")) {
+      if (!(await adapter.stop(binding.id))) throw new Error(`Cannot stop Workflow binding ${binding.id}`);
     }
   }
 }

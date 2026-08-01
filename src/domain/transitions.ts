@@ -183,9 +183,11 @@ export function setSchedulerPaused(state: ProjectState, paused: boolean): Projec
   return next;
 }
 
-export function markGrillAsked(state: ProjectState, blockerKey: string): ProjectState {
+export function markGrillAsked(state: ProjectState, blockerKey: string, sessionId?: string): ProjectState {
   const next = copy(state);
-  next.scheduler.grill ??= {};
-  next.scheduler.grill.lastAskedBlockerKey = blockerKey;
+  next.scheduler.grill ??= { lastAskedBlockerKeys: {} };
+  next.scheduler.grill.lastAskedBlockerKeys ??= {};
+  if (sessionId) next.scheduler.grill.lastAskedBlockerKeys[sessionId] = blockerKey;
+  else next.scheduler.grill.lastAskedBlockerKey = blockerKey;
   return next;
 }

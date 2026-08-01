@@ -35,6 +35,7 @@ export function registerDevflowNormalizeTool(pi: ExtensionAPI, dependencies: Too
     parameters: NormalizeParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const projectStore = await dependencies.getStore(ctx);
+      const scope = dependencies.getScope(ctx);
       if (params.action === "ask") {
         const state = await projectStore.load();
         const question = requireText(params.question, "question");
@@ -46,12 +47,13 @@ export function registerDevflowNormalizeTool(pi: ExtensionAPI, dependencies: Too
       const rationale = requireText(params.rationale, "rationale");
       const proposal: NormalizationProposal = params.action === "create_goal"
         ? {
-            id: params.proposalId,
+            id: `${scope.sessionId}:${params.proposalId}`,
             action: "create_goal",
             rationale,
             sourceRequest,
             goal: {
               id: params.goalId?.trim() || randomUUID(),
+              ownerSessionId: scope.sessionId,
               title: requireText(params.title, "title"),
               objective: requireText(params.objective, "objective"),
               successCriteria: (params.successCriteria ?? []).map((text, index) => ({
@@ -61,7 +63,7 @@ export function registerDevflowNormalizeTool(pi: ExtensionAPI, dependencies: Too
             },
           }
         : {
-            id: params.proposalId,
+            id: `${scope.sessionId}:${params.proposalId}`,
             action: "merge_as_todo",
             rationale,
             sourceRequest,
@@ -73,7 +75,12 @@ export function registerDevflowNormalizeTool(pi: ExtensionAPI, dependencies: Too
             },
           };
       const next = await projectStore.transact(
-        (state) => applyNormalizationProposal(state, proposal, new Date().toISOString()),
+        (state) => {
+          if (proposal.action === "merge_as_todo" && state.goals[proposal.targetGoalId]?.ownerSessionId !== scope.sessionId) {
+            throw new Error(`Goal ${proposal.targetGoalId} belongs to another Pi session`);
+          }
+          return applyNormalizationProposal(state, proposal, new Date().toISOString());
+        },
         { actor: "tool:devflow_normalize" },
       );
       return textResult(`Normalization ${proposal.action} applied: ${proposal.rationale}`, next);

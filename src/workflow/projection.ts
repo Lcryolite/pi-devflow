@@ -1,17 +1,21 @@
 import type { WorkflowSnapshot } from "@quintinshaw/pi-dynamic-workflows";
 
 import { addTodo } from "../domain/state.js";
-import type {
-  ModelRole,
-  ProjectState,
-  WorkflowAgentProjection,
-  WorkflowPhaseProjection,
+import {
+  LEGACY_UNOWNED_SESSION,
+  type ModelRole,
+  type ProjectState,
+  type WorkflowAgentProjection,
+  type WorkflowPhaseProjection,
 } from "../domain/types.js";
 
 export interface CreateWorkflowBindingInput {
   bindingId: string;
   upstreamRunId: string;
   todoId: string;
+  ownerSessionId?: string;
+  ownerRuntimeId?: string;
+  status?: "planned" | "running";
   phases: Array<{ title: string; role: ModelRole; requestedModel?: string }>;
 }
 
@@ -22,7 +26,14 @@ export function createWorkflowBinding(
 ): ProjectState {
   const parent = state.todos[input.todoId];
   if (!parent) throw new Error(`Todo ${input.todoId} does not exist`);
+  const goal = state.goals[parent.goalId];
+  if (!goal || goal.status === "completed" || goal.status === "cancelled" || parent.status === "completed" || parent.status === "cancelled") {
+    throw new Error(`Todo ${input.todoId} is terminal and cannot start a Workflow`);
+  }
   if (state.workflowRuns[input.bindingId]) throw new Error(`Workflow binding ${input.bindingId} already exists`);
+  const activeBinding = Object.values(state.workflowRuns).find((binding) =>
+    binding.todoId === input.todoId && ["planned", "running", "paused"].includes(binding.status));
+  if (activeBinding) throw new Error(`Todo ${input.todoId} already has active Workflow ${activeBinding.id}`);
   let next = structuredClone(state);
   const phases: WorkflowPhaseProjection[] = [];
   let previousTodoId: string | undefined;
@@ -56,7 +67,9 @@ export function createWorkflowBinding(
     id: input.bindingId,
     todoId: input.todoId,
     upstreamRunId: input.upstreamRunId,
-    status: "running",
+    ownerSessionId: input.ownerSessionId ?? state.goals[parent.goalId]?.ownerSessionId ?? LEGACY_UNOWNED_SESSION,
+    ownerRuntimeId: input.ownerRuntimeId ?? LEGACY_UNOWNED_SESSION,
+    status: input.status ?? "running",
     phases,
     lastSnapshotSequence: 0,
     startedAt: now,
@@ -90,8 +103,17 @@ export function applyWorkflowSnapshot(
   const next = structuredClone(state);
   const binding = next.workflowRuns[bindingId]!;
   binding.lastSnapshotSequence = sequence;
+  if (snapshot.currentPhase) binding.currentPhaseTitle = snapshot.currentPhase;
+  binding.lastProgressAt = now;
   const currentIndex = snapshot.currentPhase ? binding.phases.findIndex((phase) => phase.title === snapshot.currentPhase) : -1;
 
+  const runningAgents = snapshot.agents.filter((agent) => agent.status === "running");
+  const errorAgent = snapshot.agents.find((agent) => agent.status === "error");
+  const doneAgent = [...snapshot.agents].reverse().find((agent) => agent.status === "done");
+  const lastAction = runningAgents.length > 0
+    ? `running: ${runningAgents[0]!.label}${runningAgents.length > 1 ? ` +${runningAgents.length - 1}` : ""}`
+    : errorAgent ? `error: ${errorAgent.label}` : doneAgent ? `done: ${doneAgent.label}` : snapshot.currentPhase;
+  if (lastAction) binding.lastAction = lastAction;
   binding.phases.forEach((phase, index) => {
     const agents = snapshot.agents.filter((agent) => agent.phase === phase.title).map((agent) => agentProjection(agent, binding.upstreamRunId));
     phase.agents = agents;
@@ -106,7 +128,7 @@ export function applyWorkflowSnapshot(
       todo.status = "in_progress";
       delete todo.completedAt;
     }
-    todo.updatedAt = now;
+    if (currentIndex >= index && todo.updatedAt !== now) todo.updatedAt = now;
   });
   return next;
 }

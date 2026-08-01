@@ -89,7 +89,7 @@ test("a goal cannot complete without evidence for every required criterion", () 
   assert.throws(() => completeGoal(state, "goal-1", "2026-07-30T00:00:02.000Z"), /missing evidence/);
   assert.throws(() => addCriterionEvidence(state, "goal-1", "criterion-1", "unknown", "2026-07-30T00:00:02.000Z"), /does not exist/);
   state = addEvidence(state, {
-    id: "test:npm-test", kind: "test", summary: "npm test", observedAt: "2026-07-30T00:00:03.000Z", valid: true,
+    id: "test:npm-test", ownerSessionId: "legacy-unowned", kind: "test", summary: "npm test", observedAt: "2026-07-30T00:00:03.000Z", valid: true,
   });
 
   state = addCriterionEvidence(state, "goal-1", "criterion-1", "test:npm-test", "2026-07-30T00:00:03.000Z");

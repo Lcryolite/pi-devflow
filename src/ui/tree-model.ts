@@ -21,10 +21,14 @@ export function projectTreeRows(
   state: ProjectState,
   expandedIds: ReadonlySet<string>,
   focusedGoalId?: string,
+  ownerSessionId?: string,
+  activeOnly = false,
 ): TreeRow[] {
   const rows: TreeRow[] = [];
   const goals = Object.values(state.goals)
-    .filter((goal) => !focusedGoalId || goal.id === focusedGoalId)
+    .filter((goal) => (!focusedGoalId || goal.id === focusedGoalId)
+      && (!ownerSessionId || goal.ownerSessionId === ownerSessionId)
+      && (!activeOnly || goal.status === "active" || goal.status === "blocked"))
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
 
 

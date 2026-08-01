@@ -11,6 +11,7 @@ function baseState(): ProjectState {
   const state = createProjectState("/tmp/devflow-test", now);
   state.goals.g1 = {
     id: "g1",
+    ownerSessionId: "legacy-unowned",
     title: "Goal",
     objective: "obj",
     successCriteria: [],
@@ -43,6 +44,8 @@ function baseState(): ProjectState {
     id: "t1",
     todoId: "t1",
     goalId: "g1",
+    ownerSessionId: "legacy-unowned",
+    ownerRuntimeId: "legacy-unowned",
     mode: "main",
     resourceClaims: [],
     acquiredAt: now,
@@ -50,6 +53,8 @@ function baseState(): ProjectState {
   state.scheduler.continuationKeys["k1"] = {
     key: "k1",
     todoId: "t1",
+    ownerSessionId: "legacy-unowned",
+    ownerRuntimeId: "legacy-unowned",
     revision: 0,
     status: "reserved",
     createdAt: now,

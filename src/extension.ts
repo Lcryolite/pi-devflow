@@ -25,6 +25,7 @@ export default function devflowExtension(pi: ExtensionAPI) {
   registerDevflowTools(pi, {
     getAdapter: (ctx) => runtime.getAdapter(ctx),
     getStore: (ctx) => runtime.getStore(ctx),
+    getScope: (ctx) => runtime.getScope(ctx),
   });
 
   pi.registerCommand("devflow-models", {

@@ -21,11 +21,14 @@ function assertAcyclic(
 }
 
 export function validateProject(state: ProjectState): void {
-  if (state.schemaVersion !== 2) throw new Error(`Unsupported schema version ${state.schemaVersion}`);
+  if (state.schemaVersion !== 3) throw new Error(`Unsupported schema version ${state.schemaVersion}`);
 
   for (const goal of Object.values(state.goals)) {
+    if (!goal.ownerSessionId) throw new Error(`Goal ${goal.id} has no session owner`);
     for (const dependencyId of goal.dependsOn) {
-      if (!state.goals[dependencyId]) throw new Error(`Goal ${goal.id} has missing dependency ${dependencyId}`);
+      const dependency = state.goals[dependencyId];
+      if (!dependency) throw new Error(`Goal ${goal.id} has missing dependency ${dependencyId}`);
+      if (dependency.ownerSessionId !== goal.ownerSessionId) throw new Error(`Goal ${goal.id} cannot depend on another Pi session's Goal ${dependencyId}`);
     }
     for (const rootId of goal.rootTodoIds) {
       const root = state.todos[rootId];
@@ -35,9 +38,11 @@ export function validateProject(state: ProjectState): void {
     }
     for (const criterion of goal.successCriteria) {
       for (const evidenceId of criterion.evidenceIds) {
-        if (!state.evidence[evidenceId]) throw new Error(`Criterion ${criterion.id} has missing evidence ${evidenceId}`);
-      }
+        const evidence = state.evidence[evidenceId];
+        if (!evidence) throw new Error(`Criterion ${criterion.id} has missing evidence ${evidenceId}`);
+        if (evidence.ownerSessionId !== goal.ownerSessionId) throw new Error(`Criterion ${criterion.id} uses foreign evidence ${evidenceId}`);
     }
+  }
   }
   assertAcyclic(Object.keys(state.goals), (id) => state.goals[id]?.dependsOn ?? [], "Goal");
 
@@ -61,14 +66,27 @@ export function validateProject(state: ProjectState): void {
     }
   }
 
+  const activeWorkflowTodos = new Set<string>();
   for (const binding of Object.values(state.workflowRuns)) {
-    if (!state.todos[binding.todoId]) throw new Error(`Workflow ${binding.id} has missing todo ${binding.todoId}`);
+    const todo = state.todos[binding.todoId];
+    if (!todo) throw new Error(`Workflow ${binding.id} has missing todo ${binding.todoId}`);
+    if (state.goals[todo.goalId]?.ownerSessionId !== binding.ownerSessionId) {
+      throw new Error(`Workflow ${binding.id} owner does not match Goal ${todo.goalId}`);
+    }
+    if (["planned", "running", "paused"].includes(binding.status)) {
+      if (activeWorkflowTodos.has(binding.todoId)) throw new Error(`Todo ${binding.todoId} has multiple active Workflows`);
+      activeWorkflowTodos.add(binding.todoId);
+    }
     for (const phase of binding.phases) {
       if (!state.todos[phase.todoId]) throw new Error(`Workflow ${binding.id} has missing phase todo ${phase.todoId}`);
     }
   }
   for (const lease of Object.values(state.scheduler.activeLeases)) {
-    if (!state.todos[lease.todoId]) throw new Error(`Lease ${lease.id} has missing todo ${lease.todoId}`);
+    const todo = state.todos[lease.todoId];
+    if (!todo) throw new Error(`Lease ${lease.id} has missing todo ${lease.todoId}`);
+    if (state.goals[todo.goalId]?.ownerSessionId !== lease.ownerSessionId) {
+      throw new Error(`Lease ${lease.id} owner does not match Goal ${todo.goalId}`);
+    }
   }
   assertAcyclic(Object.keys(state.todos), (id) => state.todos[id]?.dependsOn ?? [], "Todo");
   assertAcyclic(Object.keys(state.todos), (id) => state.todos[id]?.parentId ? [state.todos[id]!.parentId!] : [], "Todo parent");

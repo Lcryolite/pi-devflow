@@ -18,7 +18,7 @@ test("completion audit rejects invalid evidence and accepts validated evidence",
     successCriteria: [{ id: "criterion", text: "Tests pass", required: true, evidenceIds: [] }],
   }, "2026-07-30T00:00:01.000Z");
   state = addEvidence(state, {
-    id: "test", kind: "test", summary: "npm test", observedAt: "2026-07-30T00:00:02.000Z", valid: false,
+    id: "test", ownerSessionId: "legacy-unowned", kind: "test", summary: "npm test", observedAt: "2026-07-30T00:00:02.000Z", valid: false,
   });
   state = addCriterionEvidence(state, "goal", "criterion", "test", "2026-07-30T00:00:03.000Z");
 

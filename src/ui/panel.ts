@@ -24,8 +24,9 @@ export class DevflowPanel implements Component {
     private readonly requestRender: () => void,
     private readonly done: (result: DevflowPanelResult) => void,
     expandedIds: Set<string> = defaultWidgetExpandedIds(state),
+    private readonly ownerSessionId?: string,
   ) {
-    this.controller = new TreeController(state, expandedIds);
+    this.controller = new TreeController(state, expandedIds, ownerSessionId);
   }
 
   handleInput(data: string): void {
@@ -56,8 +57,8 @@ export class DevflowPanel implements Component {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
     const w = Math.max(1, width);
     const rootLabel = basename(this.state.project.root) || this.state.project.root;
-    const active = Object.values(this.state.goals).filter((goal) => goal.status === "active" || goal.status === "blocked").length;
-    const paused = this.state.scheduler.paused ? " · paused" : "";
+    const active = Object.values(this.state.goals).filter((goal) => (!this.ownerSessionId || goal.ownerSessionId === this.ownerSessionId) && (goal.status === "active" || goal.status === "blocked")).length;
+    const paused = this.ownerSessionId ? this.state.scheduler.sessionPaused[this.ownerSessionId] ? " · paused" : "" : this.state.scheduler.paused ? " · paused" : "";
     const header = `devflow · ${rootLabel} · rev ${this.state.revision} · ${active} active${paused}`;
     const help = "↑↓ move · enter expand · left collapse · g focus · r retry · p pause · esc";
     const lines = [

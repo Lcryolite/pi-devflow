@@ -123,6 +123,7 @@ export function importLegacyBranch(
     const title = goal.objective.trim().split(/\r?\n/, 1)[0]?.slice(0, 120) || "Imported goal";
     next = addGoal(next, {
       id: targetGoalId,
+      ownerSessionId: sourceKey,
       title,
       objective: goal.objective,
       successCriteria: [],
@@ -142,6 +143,7 @@ export function importLegacyBranch(
     targetGoalId = availableId(next.goals, "legacy-imported-todos", fingerprint);
     next = addGoal(next, {
       id: targetGoalId,
+      ownerSessionId: sourceKey,
       title: "Imported legacy todos",
       objective: "Complete tasks imported from rpiv-todo",
       successCriteria: [],
