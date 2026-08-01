@@ -1,3 +1,4 @@
+import { normalizeTitle } from "./text.js";
 import type { ExecutionMode, ProjectState, ResourceClaim, TodoStatus, WorkflowPlanData } from "./types.js";
 
 function copy(state: ProjectState): ProjectState {
@@ -13,7 +14,7 @@ export function updateGoal(
   const next = copy(state);
   const goal = next.goals[goalId];
   if (!goal) throw new Error(`Goal ${goalId} does not exist`);
-  if (patch.title !== undefined) goal.title = patch.title;
+  if (patch.title !== undefined) goal.title = normalizeTitle(patch.title);
   if (patch.objective !== undefined) goal.objective = patch.objective;
   if (patch.constraints !== undefined) goal.constraints = [...patch.constraints];
   if (patch.nonGoals !== undefined) goal.nonGoals = [...patch.nonGoals];
@@ -47,7 +48,7 @@ export function updateTodo(
   const todo = next.todos[todoId];
   if (!todo) throw new Error(`Todo ${todoId} does not exist`);
   const previousStatus = todo.status;
-  if (patch.title !== undefined) todo.title = patch.title;
+  if (patch.title !== undefined) todo.title = normalizeTitle(patch.title);
   if (patch.description !== undefined) todo.description = patch.description;
   if (patch.required !== undefined) todo.required = patch.required;
   if (patch.execution !== undefined) todo.execution = patch.execution;

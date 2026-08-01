@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
 
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -34,6 +34,7 @@ import { selectPendingGrill } from "./grill.js";
 import { importLegacyBranch } from "./import/legacy.js";
 import { registerDevflowWorkflowTool } from "./pi/workflow-tool.js";
 import { formatStatus } from "./status.js";
+import { resolveDevflowProjectRoot } from "./store/project-root.js";
 import { ProjectStore } from "./store/project-store.js";
 import { DevflowWorkflowAdapter } from "./workflow/adapter.js";
 import { describeModelPolicy, loadDevflowModelPolicy, modelPolicyFromTierConfig } from "./workflow/policy.js";
@@ -171,26 +172,26 @@ export default function devflowExtension(pi: ExtensionAPI) {
 
 
   const getStore = async (ctx: ExtensionContext): Promise<ProjectStore> => {
-    const cwd = resolve(ctx.cwd);
-    if (!store || storeCwd !== cwd) {
+    const root = await resolveDevflowProjectRoot(ctx.cwd);
+    if (!store || storeCwd !== root) {
       unsubscribe?.();
       widgetExpandedIds.clear();
       widgetGoalStatuses.clear();
       widgetView.expanded = false;
       widgetView.hadActivity = undefined;
-      store = await ProjectStore.open(cwd);
-      storeCwd = cwd;
+      store = await ProjectStore.open(root);
+      storeCwd = root;
     }
     return store;
   };
 
   const getWorkflowAdapter = async (ctx: ExtensionContext): Promise<DevflowWorkflowAdapter> => {
-    const cwd = resolve(ctx.cwd);
+    const root = await resolveDevflowProjectRoot(ctx.cwd);
     const projectStore = await getStore(ctx);
     mainModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "inherit";
-    if (!workflowManager || workflowManagerCwd !== cwd) {
-      workflowManager = new WorkflowManager({ cwd });
-      workflowManagerCwd = cwd;
+    if (!workflowManager || workflowManagerCwd !== root) {
+      workflowManager = new WorkflowManager({ cwd: root });
+      workflowManagerCwd = root;
       applyModelPolicy(loadDevflowModelPolicy());
       workflowAdapter = new DevflowWorkflowAdapter(workflowManager, projectStore, () => mainModel, modelPolicy, () => {
         if (activeContext) void dispatchReady(activeContext, true);
@@ -769,8 +770,16 @@ export default function devflowExtension(pi: ExtensionAPI) {
       if (action === "doctor") {
         validateProject(state);
         const legacy = pi.getAllTools().filter((tool) => ["todo", "create_goal", "get_goal", "update_goal"].includes(tool.name));
-        const warning = legacy.length > 0 ? ` Legacy tools detected: ${legacy.map((tool) => tool.name).join(", ")}.` : "";
-        ctx.ui.notify(`Devflow state is valid at revision ${state.revision}. Journal: ${projectStore.journalPath}.${warning}`, legacy.length > 0 ? "warning" : "info");
+        const homeRoot = state.project.root === homedir() || state.project.root === `${homedir()}/`;
+        const warnings = [
+          legacy.length > 0 ? `Legacy tools detected: ${legacy.map((tool) => tool.name).join(", ")}.` : "",
+          homeRoot ? `Project root is your home directory (${state.project.root}). Open Pi inside a Git repo so workspaces stay isolated.` : "",
+        ].filter(Boolean);
+        const warningText = warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
+        ctx.ui.notify(
+          `Devflow OK · root ${state.project.root} · rev ${state.revision} · journal ${projectStore.journalPath}.${warningText}`,
+          warnings.length > 0 ? "warning" : "info",
+        );
         return;
       }
       ctx.ui.notify("Usage: /devflow [status|doctor|models|pause|resume]", "error");
