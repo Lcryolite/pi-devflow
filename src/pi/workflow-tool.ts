@@ -1,10 +1,10 @@
 import { StringEnum } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-import type { ProjectStore } from "../store/project-store.js";
-import type { DevflowWorkflowAdapter } from "../workflow/adapter.js";
 import type { DevflowWorkflowPlan } from "../workflow/script.js";
+import type { ToolDependencies } from "../tools/tool-deps.js";
+import { requireText } from "../tools/util.js";
 
 const Action = StringEnum(["start", "status", "pause", "resume", "stop"] as const);
 const Role = StringEnum(["fanout", "work", "judge"] as const);
@@ -23,15 +23,7 @@ const Params = Type.Object({
   }), { minItems: 1 })),
 });
 
-export interface WorkflowToolDependencies {
-  getAdapter(ctx: ExtensionContext): Promise<DevflowWorkflowAdapter>;
-  getStore(ctx: ExtensionContext): Promise<ProjectStore>;
-}
-
-function required(value: string | undefined, field: string): string {
-  if (!value?.trim()) throw new Error(`${field} is required`);
-  return value.trim();
-}
+export type WorkflowToolDependencies = ToolDependencies;
 
 export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: WorkflowToolDependencies): void {
   pi.registerTool({
@@ -45,8 +37,8 @@ export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: Work
       const store = await dependencies.getStore(ctx);
       if (params.action === "start") {
         const plan: DevflowWorkflowPlan = {
-          name: required(params.name, "name"),
-          description: required(params.description, "description"),
+          name: requireText(params.name, "name"),
+          description: requireText(params.description, "description"),
           phases: (params.phases ?? []).map((phase) => ({
             title: phase.title,
             role: phase.role,
@@ -55,7 +47,7 @@ export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: Work
           })),
         };
         if (plan.phases.length === 0) throw new Error("phases is required");
-        const bindingId = await adapter.start(required(params.todoId, "todoId"), plan);
+        const bindingId = await adapter.start(requireText(params.todoId, "todoId"), plan);
         const state = await store.load();
         return {
           content: [{ type: "text", text: `Started Workflow binding ${bindingId}` }],
@@ -81,7 +73,7 @@ export function registerDevflowWorkflowTool(pi: ExtensionAPI, dependencies: Work
         };
       }
 
-      const bindingId = required(params.bindingId, "bindingId");
+      const bindingId = requireText(params.bindingId, "bindingId");
       const changed = params.action === "pause"
         ? await adapter.pause(bindingId)
         : params.action === "resume"
